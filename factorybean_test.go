@@ -46,11 +46,11 @@ type factoryBeanExample struct {
 	SomeService *someService `inject`
 }
 
-func (t *factoryBeanExample) Object() interface{} {
+func (t *factoryBeanExample) Object() (interface{}, error) {
 	require.NotNil(t.testing, t.SomeService)
 	someProperty := t.SomeService.GetProperty()
 	println("Construct beanConstructed after ", someProperty)
-	return &beanConstructed{someService: t.SomeService, testing: t.testing}
+	return &beanConstructed{someService: t.SomeService, testing: t.testing}, nil
 }
 
 func (t *factoryBeanExample) ObjectType() reflect.Type {
@@ -70,8 +70,8 @@ type repeatedFactoryBeanExample struct {
 	testing *testing.T
 }
 
-func (t *repeatedFactoryBeanExample) Object() interface{} {
-	return &beanConstructed{testing: t.testing}
+func (t *repeatedFactoryBeanExample) Object() (interface{}, error) {
+	return &beanConstructed{testing: t.testing}, nil
 }
 
 func (t *repeatedFactoryBeanExample) ObjectType() reflect.Type {
@@ -172,11 +172,11 @@ type factoryBeanImpl struct {
 	SomeService SomeService `inject`
 }
 
-func (t *factoryBeanImpl) Object() interface{} {
+func (t *factoryBeanImpl) Object() (interface{}, error) {
 	require.NotNil(t.testing, t.SomeService)
 	someProperty := t.SomeService.GetProperty()
 	println("Construct beanConstructedImpl after ", someProperty)
-	return &beanConstructedImpl{someService: t.SomeService, testing: t.testing}
+	return &beanConstructedImpl{someService: t.SomeService, testing: t.testing}, nil
 }
 
 func (t *factoryBeanImpl) ObjectType() reflect.Type {

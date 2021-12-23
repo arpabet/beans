@@ -95,7 +95,7 @@ type FactoryBean interface {
 	/**
 	returns an object produced by the factory, and this is the object that will be used in context, but not going to be a bean
 	*/
-	Object() interface{}
+	Object() (interface{}, error)
 
 	/**
 	returns the type of object that this FactoryBean produces

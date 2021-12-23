@@ -223,7 +223,11 @@ func (t *factory) ctor() (*bean, error) {
 		t.singletonObj = nil
 	}
 	if t.singletonObj == nil {
-		t.singletonObj = t.factoryBean.Object()
+		var err error
+		t.singletonObj, err = t.factoryBean.Object()
+		if err != nil {
+			return nil, errors.Errorf("factory bean '%v' failed to create bean '%v', %v", t.factoryClassPtr, t.factoryBean.ObjectType(), err)
+		}
 		producedClassPtr := reflect.TypeOf(t.singletonObj)
 		if producedClassPtr != t.factoryBean.ObjectType() && !producedClassPtr.Implements(t.factoryBean.ObjectType()) {
 			return nil, errors.Errorf("factory bean '%v' produced '%v' object that does not implement or equal '%v'", t.factoryClassPtr, producedClassPtr, t.factoryBean.ObjectType())
@@ -236,7 +240,6 @@ func (t *factory) ctor() (*bean, error) {
 				lifecycle: BeanCreated,
 			}
 		} else {
-			var err error
 			t.singletonBean, err = investigate(t.singletonObj, producedClassPtr)
 			if err != nil {
 				return nil, errors.Errorf("factory bean '%v' produced invalid bean '%v', %v", t.factoryClassPtr, producedClassPtr, err)
