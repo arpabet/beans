@@ -1,6 +1,7 @@
 package beans_test
 
 import (
+	"errors"
 	"github.com/stretchr/testify/require"
 	"go.arpabet.com/beans"
 	"reflect"
@@ -21,6 +22,7 @@ type ServerService interface {
 type beanServer struct {
 	initialized bool
 	destroyed   bool
+	throwError  bool
 }
 
 func (t *beanServer) Serve(app string) error {
@@ -29,6 +31,10 @@ func (t *beanServer) Serve(app string) error {
 }
 
 func (t *beanServer) PostConstruct() error {
+	if t.throwError {
+		println("ServerService.PostConstruct Error")
+		return errors.New("server construct error")
+	}
 	println("ServerService.PostConstruct")
 	t.initialized = true
 	return nil
@@ -101,6 +107,29 @@ func TestPostConstruct(t *testing.T) {
 
 	client := ctx.MustBean(ClientServiceClass).(ClientService)
 	client.Run("t3st")
+
+}
+
+func TestPostConstructWithError(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&beanClient{testing: t},
+		&beanServer{throwError: true},
+		/**
+		  enum all interfaces in context, to make sure that all of them are initialized
+		*/
+		&struct {
+			ClientService `inject`
+			ServerService `inject`
+		}{},
+	)
+
+	require.NotNil(t, err)
+	require.Nil(t, ctx)
+	require.True(t, strings.Contains(err.Error(), "server construct error"))
+	println(err.Error())
 
 }
 

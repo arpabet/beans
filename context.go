@@ -472,7 +472,7 @@ func (t *context) initalizeBean(bean *bean, stack []*bean) error {
 
 	if initializer, ok := bean.obj.(InitializingBean); ok {
 		if err := initializer.PostConstruct(); err != nil {
-			return errors.Errorf("post construct bean %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
+			return errors.Errorf("post construct failed for %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
 		}
 	}
 

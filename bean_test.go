@@ -14,7 +14,7 @@ type firstBean struct {
 
 var SecondBeanClass = reflect.TypeOf((*secondBean)(nil)) // *secondBean
 type secondBean struct {
-	FirstBean *firstBean `inject`
+	FirstBean *firstBean `inject:"-"`
 	testing   *testing.T
 }
 
@@ -36,6 +36,23 @@ func TestBeanByPointer(t *testing.T) {
 	require.True(t, ok)
 
 	second.(*secondBean).Run()
+
+}
+
+func TestMultipleBeanByPointer(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&firstBean{},
+		&firstBean{},
+		&secondBean{testing: t},
+	)
+
+	require.Error(t, err)
+	require.Nil(t, ctx)
+	require.True(t, strings.Contains(err.Error(), "already"))
+	println(err.Error())
 
 }
 
