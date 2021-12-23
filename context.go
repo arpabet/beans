@@ -233,7 +233,7 @@ func Create(scan ...interface{}) (Context, error) {
 			}
 
 			if len(required) > 0 {
-				return nil, errorNoCandidates(requiredType, required)
+				return nil, errors.Errorf("can not find candidates for '%v' reference bean required by '%+v'", requiredType, required)
 			}
 
 		}
@@ -248,7 +248,27 @@ func Create(scan ...interface{}) (Context, error) {
 		}
 
 		if len(candidates) == 0 {
-			return nil, errors.Errorf("can not find implementations for '%v' interface", ifaceType)
+
+			if Verbose {
+				fmt.Printf("No found bean for interface '%v' in context\n", ifaceType)
+			}
+
+			var required []*injection
+			for _, inject := range injects {
+				if inject.injectionDef.optional {
+					if Verbose {
+						fmt.Printf("Skip optional inject of interface '%v' in to '%v'\n", ifaceType, inject)
+					}
+				} else {
+					required = append(required, inject)
+				}
+			}
+
+			if len(required) > 0 {
+				return nil, errors.Errorf("can not find implementation for '%v' interface required by '%+v'", ifaceType, required)
+			}
+
+			continue
 		}
 
 		for _, candidate := range candidates {
@@ -322,21 +342,6 @@ func Create(scan ...interface{}) (Context, error) {
 
 func (t *context) Extend(scan ...interface{}) (Context, error) {
 	return t, nil
-}
-
-func errorNoCandidates(requiredType reflect.Type, injects []*injection) error {
-	var out strings.Builder
-	out.WriteString("can not find candidates for '")
-	out.WriteString(requiredType.String())
-	out.WriteString("' required by [")
-	for i, inject := range injects {
-		if i > 0 {
-			out.WriteString(", ")
-		}
-		out.WriteString(inject.String())
-	}
-	out.WriteString("]")
-	return errors.New(out.String())
 }
 
 func (t *context) Core() []reflect.Type {

@@ -48,3 +48,41 @@ func TestOptionalBeanByPointer(t *testing.T) {
 
 	require.Nil(t, b.(*beanB).BeanA)
 }
+
+var BeanAServiceClass = reflect.TypeOf((*BeanAService)(nil)).Elem()
+
+type BeanAService interface {
+	A()
+}
+
+var BeanBServiceClass = reflect.TypeOf((*BeanBService)(nil)).Elem()
+
+type BeanBService interface {
+	B()
+}
+
+type beanBServiceImpl struct {
+	BeanAService BeanAService `inject:"optional"`
+	testing      *testing.T
+}
+
+func (t *beanBServiceImpl) B() {
+}
+
+func TestOptionalBeanByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&beanBServiceImpl{testing: t},
+		&struct {
+			BeanBService `inject`
+		}{},
+	)
+	require.NoError(t, err)
+
+	b, ok := ctx.Bean(BeanBServiceClass)
+	require.True(t, ok)
+
+	require.Nil(t, b.(*beanBServiceImpl).BeanAService)
+}
