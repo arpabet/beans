@@ -27,6 +27,8 @@ import (
 	"sync/atomic"
 )
 
+var Verbose bool
+
 type context struct {
 
 	/**
@@ -212,14 +214,29 @@ func Create(scan ...interface{}) (Context, error) {
 			}
 
 			found = append(found, requiredType)
-		}
-	}
 
-	if len(found) != len(pointers) {
-		for _, f := range found {
-			delete(pointers, f)
+		} else {
+
+			if Verbose {
+				fmt.Printf("No found bean '%v' in context\n", requiredType)
+			}
+
+			var required []*injection
+			for _, inject := range injects {
+				if inject.injectionDef.optional {
+					if Verbose {
+						fmt.Printf("Skip optional inject '%v' in to '%v'\n", requiredType, inject)
+					}
+				} else {
+					required = append(required, inject)
+				}
+			}
+
+			if len(required) > 0 {
+				return nil, errorNoCandidates(requiredType, required)
+			}
+
 		}
-		return nil, errorNoCandidates(pointers)
 	}
 
 	// interface match
@@ -303,25 +320,20 @@ func Create(scan ...interface{}) (Context, error) {
 
 }
 
-func errorNoCandidates(pointers map[reflect.Type][]*injection) error {
+func (t *context) Extend(scan ...interface{}) (Context, error) {
+	return t, nil
+}
+
+func errorNoCandidates(requiredType reflect.Type, injects []*injection) error {
 	var out strings.Builder
-	out.WriteString("can not find candidates for those types: [")
-	first := true
-	for requiredType, injects := range pointers {
-		if !first {
-			out.WriteString(";")
+	out.WriteString("can not find candidates for '")
+	out.WriteString(requiredType.String())
+	out.WriteString("' required by [")
+	for i, inject := range injects {
+		if i > 0 {
+			out.WriteString(", ")
 		}
-		first = false
-		out.WriteString("'")
-		out.WriteString(requiredType.String())
-		out.WriteRune('\'')
-		for i, inject := range injects {
-			if i > 0 {
-				out.WriteString(", ")
-			}
-			out.WriteString(" required by ")
-			out.WriteString(inject.String())
-		}
+		out.WriteString(inject.String())
 	}
 	out.WriteString("]")
 	return errors.New(out.String())
@@ -472,7 +484,7 @@ func (t *context) initalizeBean(bean *bean, stack []*bean) error {
 
 	if initializer, ok := bean.obj.(InitializingBean); ok {
 		if err := initializer.PostConstruct(); err != nil {
-			return errors.Errorf("post construct failed for %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
+			return errors.Errorf("post construct failed %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
 		}
 	}
 
@@ -521,62 +533,6 @@ func multiple(err []error) error {
 	default:
 		return errors.Errorf("multiple errors, %v", err)
 	}
-}
-
-func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
-	var fields []*injectionDef
-	var notImplements []reflect.Type
-	valuePtr := reflect.ValueOf(obj)
-	class := classPtr.Elem()
-	for j := 0; j < class.NumField(); j++ {
-		field := class.Field(j)
-		if field.Anonymous {
-			notImplements = append(notImplements, field.Type)
-		}
-		injectTag, hasInjectTag := field.Tag.Lookup("inject")
-		if field.Tag == "inject" || hasInjectTag {
-			var specificBean string
-			if hasInjectTag {
-				pairs := strings.Split(injectTag, ",")
-				for _, pair := range pairs {
-					p := strings.TrimSpace(pair)
-					kv := strings.Split(p, "=")
-					if kv[0] == "bean" && len(kv) > 1 {
-						specificBean = kv[1]
-					}
-				}
-			}
-			kind := field.Type.Kind()
-			fieldType := field.Type
-			fieldLazy := false
-			if kind == reflect.Func && field.Type.NumIn() == 0 && field.Type.NumOut() == 1 {
-				fieldType = field.Type.Out(0)
-				fieldLazy = true
-				kind = fieldType.Kind()
-			}
-			if kind != reflect.Ptr && kind != reflect.Interface {
-				return nil, errors.Errorf("not a pointer or interface field type '%v' on position %d in %v", field.Type, j, classPtr)
-			}
-			injectDef := &injectionDef{
-				class:        class,
-				fieldNum:     j,
-				fieldName:    field.Name,
-				fieldType:    fieldType,
-				lazy:         fieldLazy,
-				specificBean: specificBean,
-			}
-			fields = append(fields, injectDef)
-		}
-	}
-	return &bean{
-		obj:      obj,
-		valuePtr: valuePtr,
-		beanDef: &beanDef{
-			classPtr:      classPtr,
-			notImplements: notImplements,
-			fields:        fields,
-		},
-	}, nil
 }
 
 var errNotFoundInterface = errors.New("not found")

@@ -20,11 +20,14 @@ package beans
 
 import "reflect"
 
-var Verbose = false
-
 var ContextClass = reflect.TypeOf((*Context)(nil)).Elem()
 
 type Context interface {
+	/**
+	Create new context with additional beans based on current one
+	*/
+	Extend(scan ...interface{}) (Context, error)
+
 	/**
 	Destroy all beans that implement interface DisposableBean.
 	*/
@@ -131,4 +134,15 @@ type DisposableBean interface {
 	*/
 
 	Destroy() error
+}
+
+/**
+This interface used to collect all beans with similar type in map, where the name is the key
+*/
+type NamedBean interface {
+
+	/**
+	Returns unique bean name
+	*/
+	BeanName() string
 }

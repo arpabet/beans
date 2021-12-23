@@ -19,56 +19,10 @@
 package beans
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
+	"strings"
 )
-
-type injectionDef struct {
-
-	/**
-	Class of that struct
-	*/
-	class reflect.Type
-	/**
-	Field number of that struct
-	*/
-	fieldNum int
-	/**
-	Field name where injection is going to be happen
-	*/
-	fieldName string
-	/**
-	Type of the field that is going to be injected
-	*/
-	fieldType reflect.Type
-	/**
-	Lazy injection represented by function
-	*/
-	lazy bool
-	/*
-		Injection expects specific bean to be injected
-	*/
-	specificBean string
-}
-
-type injection struct {
-
-	/*
-		Bean where injection is going to be happen
-	*/
-	bean *bean
-
-	/**
-	Reflection value of the bean where injection is going to be happen
-	*/
-	value reflect.Value
-
-	/**
-	Injection information
-	*/
-	injectionDef *injectionDef
-}
 
 type beanDef struct {
 	/**
@@ -143,46 +97,6 @@ func (t *beanDef) implements(ifaceType reflect.Type) bool {
 		}
 	}
 	return t.classPtr.Implements(ifaceType)
-}
-
-/**
-Inject value in to the field by using reflection
-*/
-func (t *injection) inject(impl *bean) error {
-	return t.injectionDef.inject(&t.value, impl)
-}
-
-func (t *injectionDef) inject(value *reflect.Value, impl *bean) error {
-	field := value.Field(t.fieldNum)
-	if field.CanSet() {
-		if t.lazy {
-			fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
-				if impl.lifecycle != BeanInitialized {
-					return []reflect.Value{reflect.Zero(t.fieldType)}
-				} else {
-					return []reflect.Value{impl.valuePtr}
-				}
-			})
-			field.Set(fn)
-		} else {
-			field.Set(impl.valuePtr)
-		}
-		return nil
-	} else {
-		return errors.Errorf("field '%s' in class '%v' is not public", t.fieldName, t.class)
-	}
-}
-
-/**
-User friendly information about class and field
-*/
-
-func (t *injection) String() string {
-	return t.injectionDef.String()
-}
-
-func (t *injectionDef) String() string {
-	return fmt.Sprintf(" %v->%s ", t.class, t.fieldName)
 }
 
 type factory struct {
@@ -268,4 +182,70 @@ type factoryDependency struct {
 		Injection function where we need to inject produced instance
 	*/
 	injection func(instance *bean) error
+}
+
+/**
+Investigate bean by using reflection
+*/
+func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
+	var fields []*injectionDef
+	var notImplements []reflect.Type
+	valuePtr := reflect.ValueOf(obj)
+	class := classPtr.Elem()
+	for j := 0; j < class.NumField(); j++ {
+		field := class.Field(j)
+		if field.Anonymous {
+			notImplements = append(notImplements, field.Type)
+		}
+		injectTag, hasInjectTag := field.Tag.Lookup("inject")
+		if field.Tag == "inject" || hasInjectTag {
+			var specificBean string
+			var optionalBean bool
+			if hasInjectTag {
+				pairs := strings.Split(injectTag, ",")
+				for _, pair := range pairs {
+					p := strings.TrimSpace(pair)
+					kv := strings.Split(p, "=")
+					switch strings.TrimSpace(kv[0]) {
+					case "bean":
+						if len(kv) > 1 {
+							specificBean = strings.TrimSpace(kv[1])
+						}
+					case "optional":
+						optionalBean = true
+					}
+				}
+			}
+			kind := field.Type.Kind()
+			fieldType := field.Type
+			fieldLazy := false
+			if kind == reflect.Func && field.Type.NumIn() == 0 && field.Type.NumOut() == 1 {
+				fieldType = field.Type.Out(0)
+				fieldLazy = true
+				kind = fieldType.Kind()
+			}
+			if kind != reflect.Ptr && kind != reflect.Interface {
+				return nil, errors.Errorf("not a pointer or interface field type '%v' on position %d in %v", field.Type, j, classPtr)
+			}
+			injectDef := &injectionDef{
+				class:        class,
+				fieldNum:     j,
+				fieldName:    field.Name,
+				fieldType:    fieldType,
+				lazy:         fieldLazy,
+				optional:     optionalBean,
+				specificBean: specificBean,
+			}
+			fields = append(fields, injectDef)
+		}
+	}
+	return &bean{
+		obj:      obj,
+		valuePtr: valuePtr,
+		beanDef: &beanDef{
+			classPtr:      classPtr,
+			notImplements: notImplements,
+			fields:        fields,
+		},
+	}, nil
 }
