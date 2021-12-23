@@ -109,3 +109,71 @@ func TestBeanByInterface(t *testing.T) {
 	secondService.(SecondService).Second()
 
 }
+
+type firstService2Impl struct {
+	testing *testing.T
+}
+
+func (t *firstService2Impl) First() {
+	require.True(t.testing, true)
+}
+
+func TestMultipleBeansByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&firstServiceImpl{testing: t},
+		&firstService2Impl{testing: t},
+
+		&struct {
+			FirstService `inject:"-"`
+		}{},
+	)
+
+	require.Error(t, err)
+	require.Nil(t, ctx)
+	require.True(t, strings.Contains(err.Error(), "two or more"))
+
+}
+
+func TestSpecificBeanByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&firstServiceImpl{testing: t},
+		&firstService2Impl{testing: t},
+
+		&struct {
+			FirstService `inject:"bean=*beans_test.firstServiceImpl"`
+		}{},
+	)
+
+	require.NoError(t, err)
+
+	firstService, ok := ctx.Bean(FirstServiceClass)
+	require.True(t, ok)
+
+	firstService.(FirstService).First()
+
+}
+
+func TestNotFoundSpecificBeanByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&firstServiceImpl{testing: t},
+		&firstService2Impl{testing: t},
+
+		&struct {
+			FirstService `inject:"bean=*beans_test.unknownBean"`
+		}{},
+	)
+
+	require.Error(t, err)
+	require.Nil(t, ctx)
+	require.True(t, strings.Contains(err.Error(), "specific"))
+
+}

@@ -225,49 +225,38 @@ func Create(scan ...interface{}) (Context, error) {
 	// interface match
 	for ifaceType, injects := range interfaces {
 
-		service, err := searchByInterface(ifaceType, core)
-		if err == errNotFoundInterface {
-			factory, err := searchFactoryByInterface(ifaceType, factories)
-			if err == errNotFoundInterface {
-				return nil, errors.Errorf("can not find implementations for '%v' interface", ifaceType)
-			} else if err != nil {
-				return nil, errors.Errorf("%v, required by those injections: %v", err, injects)
-			} else {
+		candidates, err := searchCandidates(ifaceType, core, factories)
+		if err != nil {
+			return nil, errors.Errorf("can not find candidates for '%v' interface, %v", ifaceType, err)
+		}
 
+		if len(candidates) == 0 {
+			return nil, errors.Errorf("can not find implementations for '%v' interface", ifaceType)
+		}
+
+		for _, candidate := range candidates {
+			if candidate.bean != nil {
+				service := candidate.bean
+				beansByType[ifaceType] = service
+				name := ifaceType.String()
+				beansByName[name] = append(beansByName[name], service)
+			}
+		}
+
+		for _, inject := range injects {
+
+			candidate, err := selectCandidate(ifaceType, candidates, inject)
+			if err != nil {
+				return nil, err
+			}
+
+			if candidate.bean != nil {
+
+				service := candidate.bean
 				if Verbose {
-					fmt.Printf("FactoryInject '%v' by implementation '%v' through factory '%v' in to %+v\n", ifaceType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, injects)
+					fmt.Printf("Inject '%v' by implementation '%v' in to %+v\n", ifaceType, service.beanDef.classPtr, injects)
 				}
 
-				for _, inject := range injects {
-					if inject.injectionDef.lazy {
-						return nil, errors.Errorf("lazy injection is not supported for type '%v' by implementation '%v' through factory '%v' in to '%v'", ifaceType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, inject)
-					}
-					// register factory dependency for 'inject.bean' that is using 'factory'
-					inject.bean.factoryDependencies = append(inject.bean.factoryDependencies,
-						&factoryDependency{
-							factory: factory,
-							injection: func(service *bean) error {
-
-								beansByType[ifaceType] = service
-								name := ifaceType.String()
-								beansByName[name] = append(beansByName[name], service)
-
-								return inject.inject(service)
-							},
-						})
-				}
-
-			}
-
-		} else if err != nil {
-			return nil, errors.Errorf("%v, required by those injections: %v", err, injects)
-		} else {
-
-			if Verbose {
-				fmt.Printf("Inject '%v' by implementation '%v' in to %+v\n", ifaceType, service.beanDef.classPtr, injects)
-			}
-
-			for _, inject := range injects {
 				if err := inject.inject(service); err != nil {
 					return nil, err
 				}
@@ -275,13 +264,34 @@ func Create(scan ...interface{}) (Context, error) {
 				if !inject.injectionDef.lazy {
 					inject.bean.dependencies = append(inject.bean.dependencies, service)
 				}
+
+			} else if candidate.factory != nil {
+
+				factory := candidate.factory
+				if Verbose {
+					fmt.Printf("FactoryInject '%v' by implementation '%v' through factory '%v' in to %+v\n", ifaceType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, injects)
+				}
+
+				if inject.injectionDef.lazy {
+					return nil, errors.Errorf("lazy injection is not supported for type '%v' by implementation '%v' through factory '%v' in to '%v'", ifaceType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, inject)
+				}
+				// register factory dependency for 'inject.bean' that is using 'factory'
+				inject.bean.factoryDependencies = append(inject.bean.factoryDependencies,
+					&factoryDependency{
+						factory: factory,
+						injection: func(service *bean) error {
+
+							beansByType[ifaceType] = service
+							name := ifaceType.String()
+							beansByName[name] = append(beansByName[name], service)
+
+							return inject.inject(service)
+						},
+					})
 			}
 
-			beansByType[ifaceType] = service
-			name := ifaceType.String()
-			beansByName[name] = append(beansByName[name], service)
-
 		}
+
 	}
 
 	if err := ctx.postConstruct(); err != nil {
@@ -523,7 +533,19 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 		if field.Anonymous {
 			notImplements = append(notImplements, field.Type)
 		}
-		if field.Tag == "inject" {
+		injectTag, hasInjectTag := field.Tag.Lookup("inject")
+		if field.Tag == "inject" || hasInjectTag {
+			var specificBean string
+			if hasInjectTag {
+				pairs := strings.Split(injectTag, ",")
+				for _, pair := range pairs {
+					p := strings.TrimSpace(pair)
+					kv := strings.Split(p, "=")
+					if kv[0] == "bean" && len(kv) > 1 {
+						specificBean = kv[1]
+					}
+				}
+			}
 			kind := field.Type.Kind()
 			fieldType := field.Type
 			fieldLazy := false
@@ -536,11 +558,12 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				return nil, errors.Errorf("not a pointer or interface field type '%v' on position %d in %v", field.Type, j, classPtr)
 			}
 			injectDef := &injectionDef{
-				class:     class,
-				fieldNum:  j,
-				fieldName: field.Name,
-				fieldType: fieldType,
-				lazy:      fieldLazy,
+				class:        class,
+				fieldNum:     j,
+				fieldName:    field.Name,
+				fieldType:    fieldType,
+				lazy:         fieldLazy,
+				specificBean: specificBean,
 			}
 			fields = append(fields, injectDef)
 		}
@@ -558,6 +581,52 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 
 var errNotFoundInterface = errors.New("not found")
 
+type candidate struct {
+	name    string
+	bean    *bean
+	factory *factory
+}
+
+func (t *candidate) String() string {
+	return t.name
+}
+
+func searchCandidates(ifaceType reflect.Type, core map[reflect.Type]*bean, factories map[reflect.Type]*factory) ([]*candidate, error) {
+	var candidates []*candidate
+	for _, bean := range core {
+		if bean.beanDef.implements(ifaceType) {
+			candidates = append(candidates, &candidate{name: bean.beanDef.classPtr.String(), bean: bean})
+		}
+	}
+	for objTyp, factory := range factories {
+		if objTyp.Implements(ifaceType) {
+			candidates = append(candidates, &candidate{name: factory.factoryClassPtr.String(), factory: factory})
+		}
+	}
+	return candidates, nil
+}
+
+func selectCandidate(ifaceType reflect.Type, candidates []*candidate, inject *injection) (*candidate, error) {
+	if inject.injectionDef.specificBean != "" {
+		name := inject.injectionDef.specificBean
+		for _, candidate := range candidates {
+			if candidate.name == name {
+				return candidate, nil
+			}
+		}
+		return nil, errors.Errorf("the specific implementation '%s' of interface '%v' required by injection '%v' is not found from candidates '%v'", name, ifaceType, inject, candidates)
+	} else {
+		switch len(candidates) {
+		case 0:
+			return nil, errors.Errorf("can not find implementation for '%v' interface required by injection '%v", ifaceType, inject)
+		case 1:
+			return candidates[0], nil
+		default:
+			return nil, errors.Errorf("found two or more implementation of interface '%v', candidates=%v required by injection '%v'", ifaceType, candidates, inject)
+		}
+	}
+}
+
 func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*bean) (*bean, error) {
 	var candidates []*bean
 	for _, bean := range core {
@@ -571,7 +640,7 @@ func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*bean) (*be
 	case 1:
 		return candidates[0], nil
 	default:
-		return nil, errors.Errorf("found two or more beans that have the same interface '%v', candidates=%v", ifaceType, candidates)
+		return nil, errors.Errorf("found two or more implementation of interface '%v', candidates=%v", ifaceType, candidates)
 	}
 }
 
@@ -588,6 +657,6 @@ func searchFactoryByInterface(ifaceType reflect.Type, factories map[reflect.Type
 	case 1:
 		return candidates[0], nil
 	default:
-		return nil, errors.Errorf("found two or more factory beans that have the same interface '%v', candidates=%v", ifaceType, candidates)
+		return nil, errors.Errorf("found two or more factory beans produce interface '%v', candidates=%v", ifaceType, candidates)
 	}
 }

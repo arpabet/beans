@@ -46,6 +46,10 @@ type injectionDef struct {
 	Lazy injection represented by function
 	*/
 	lazy bool
+	/*
+		Injection expects specific bean to be injected
+	*/
+	specificBean string
 }
 
 type injection struct {
