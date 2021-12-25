@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -86,10 +87,7 @@ func Create(scan ...interface{}) (Context, error) {
 	core[ctxBean.beanDef.classPtr] = ctxBean
 
 	// scan
-	for i, obj := range scan {
-		if obj == nil {
-			return nil, errors.Errorf("null object is not allowed on position %d", i)
-		}
+	err := forEach("", scan, func(pos string, obj interface{}) error {
 		classPtr := reflect.TypeOf(obj)
 		var objClassPtr reflect.Type
 		factoryBean, isFactoryBean := obj.(FactoryBean)
@@ -110,18 +108,18 @@ func Create(scan ...interface{}) (Context, error) {
 			}
 		}
 		if classPtr.Kind() != reflect.Ptr {
-			return nil, errors.Errorf("non-pointer instance is not allowed on position %d of type '%v'", i, classPtr)
+			return errors.Errorf("non-pointer instance is not allowed on position '%s' of type '%v'", pos, classPtr)
 		}
 		if already, ok := core[classPtr]; ok {
-			return nil, errors.Errorf("instance '%v' already registered, detected repeated instance on position %d of type '%v'", classPtr, i, already.beanDef.classPtr)
+			return errors.Errorf("instance '%v' already registered, detected repeated instance on position '%s' of type '%v'", classPtr, pos, already.beanDef.classPtr)
 		}
 		if isFactoryBean {
 			objClassKind := objClassPtr.Kind()
 			if objClassKind != reflect.Ptr && objClassKind != reflect.Interface {
-				return nil, errors.Errorf("factory bean '%v' on position %d can produce ptr or interface, but object type is '%v'", classPtr, i, objClassPtr)
+				return errors.Errorf("factory bean '%v' on position '%s' can produce ptr or interface, but object type is '%v'", classPtr, pos, objClassPtr)
 			}
 			if already, ok := factories[objClassPtr]; ok {
-				return nil, errors.Errorf("factory '%v' already registered for instance '%v', detected repeated factory on position %d of type '%v'", already.factoryClassPtr, objClassPtr, i, classPtr)
+				return errors.Errorf("factory '%v' already registered for instance '%v', detected repeated factory on position '%s' of type '%v'", already.factoryClassPtr, objClassPtr, pos, classPtr)
 			}
 		}
 		/**
@@ -129,7 +127,7 @@ func Create(scan ...interface{}) (Context, error) {
 		*/
 		bean, err := investigate(obj, classPtr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if len(bean.beanDef.fields) > 0 {
 			value := bean.valuePtr.Elem()
@@ -143,7 +141,7 @@ func Create(scan ...interface{}) (Context, error) {
 				case reflect.Interface:
 					interfaces[injectDef.fieldType] = append(interfaces[injectDef.fieldType], &injection{bean, value, injectDef})
 				default:
-					return nil, errors.Errorf("injecting not a pointer or interface on field type '%v' at position %d in %v", injectDef.fieldType, i, classPtr)
+					return errors.Errorf("injecting not a pointer or interface on field type '%v' at position '%s' in %v", injectDef.fieldType, pos, classPtr)
 				}
 			}
 		}
@@ -162,6 +160,12 @@ func Create(scan ...interface{}) (Context, error) {
 				factoryBean:     factoryBean,
 			}
 		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	// direct match
@@ -338,6 +342,31 @@ func Create(scan ...interface{}) (Context, error) {
 		return ctx, nil
 	}
 
+}
+
+func forEach(initialPos string, scan []interface{}, cb func(i string, obj interface{}) error) error {
+	for j, item := range scan {
+		var pos string
+		if len(initialPos) > 0 {
+			pos = fmt.Sprintf("%s.%d", initialPos, j)
+		} else {
+			pos = strconv.Itoa(j)
+		}
+		if item == nil {
+			return errors.Errorf("null object is not allowed on position '%s'", pos)
+		}
+		switch obj := item.(type) {
+		case []interface{}:
+			return forEach(pos, obj, cb)
+		case interface{}:
+			if err := cb(pos, obj); err != nil {
+				return errors.Errorf("object '%v' error, %v", reflect.ValueOf(item).Type(), err)
+			}
+		default:
+			return errors.Errorf("unknown object type '%v' on position '%s'", reflect.ValueOf(item).Type(), pos)
+		}
+	}
+	return nil
 }
 
 func (t *context) Extend(scan ...interface{}) (Context, error) {
