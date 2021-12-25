@@ -46,9 +46,8 @@ func (t *appService) Destroy() error {
 	return nil
 }
 
-func Initialize() (beans.Context, error) {
-    logger, _ := newLogger()
-	return beans.Create(
+logger, _ := newLogger()
+ctx, err := beans.Create(
 		logger,
 		storage,
 		&configService{},
@@ -58,8 +57,9 @@ func Initialize() (beans.Context, error) {
 			UserService `inject`
 			AppService  `inject`
 		}{},
-        )
-}
+)
+require.NoError(t, err)
+defer ctx.Close()
 
 beans := ctx.Bean("app.UserService")
 b, ok := ctx.Bean(reflect.TypeOf((*app.UserService)(nil)).Elem())
