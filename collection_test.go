@@ -60,6 +60,67 @@ func TestArrayByPointer(t *testing.T) {
 
 }
 
+var ElementClass = reflect.TypeOf((*Element)(nil)).Elem()
+
+type Element interface {
+	beans.NamedBean
+}
+
+var HolderClass = reflect.TypeOf((*Holder)(nil)).Elem()
+
+type Holder interface {
+	Elements() []Element
+}
+
+type elementImpl struct {
+	name string
+}
+
+func (t *elementImpl) BeanName() string {
+	return t.name
+}
+
+type holderImpl struct {
+	Array   []Element `inject`
+	testing *testing.T
+}
+
+func (t *holderImpl) Elements() []Element {
+	return t.Array
+}
+
 func TestArrayByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&elementImpl{name: "a"},
+		&elementImpl{name: "b"},
+		&elementImpl{name: "c"},
+		&holderImpl{testing: t},
+	)
+	require.NoError(t, err)
+
+	b := ctx.Bean(HolderClass)
+	require.Equal(t, 1, len(b))
+	holder := b[0].(Holder)
+
+	require.Equal(t, 3, len(holder.Elements()))
+
+	require.Equal(t, "a", holder.Elements()[0].BeanName())
+	require.Equal(t, "b", holder.Elements()[1].BeanName())
+	require.Equal(t, "c", holder.Elements()[2].BeanName())
+
+	el := ctx.Lookup("a")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "a", el[0].(Element).BeanName())
+
+	el = ctx.Lookup("b")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "b", el[0].(Element).BeanName())
+
+	el = ctx.Lookup("c")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "c", el[0].(Element).BeanName())
 
 }
