@@ -47,7 +47,7 @@ func (t *serviceBean) Run() {
 	require.Equal(t.testing, 3, t.Core.Inc())
 }
 
-func testParent(t *testing.T) {
+func TestParent(t *testing.T) {
 
 	beans.Verbose = true
 

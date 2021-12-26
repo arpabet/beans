@@ -210,7 +210,8 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 
 	// direct match
 	for requiredType, injects := range pointers {
-		if direct, ok := core[requiredType]; ok {
+
+		if direct, ok := ctx.findDirectRec(requiredType); ok {
 
 			ctx.registry.addBeanList(requiredType, direct)
 
@@ -251,7 +252,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 	// interface match
 	for ifaceType, injects := range interfaces {
 
-		candidates := searchCandidates(ifaceType, core)
+		candidates := ctx.searchCandidatesRec(ifaceType)
 		if len(candidates) == 0 {
 
 			if Verbose {
@@ -306,6 +307,16 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 		return ctx, nil
 	}
 
+}
+
+func (t *context) findDirectRec(requiredType reflect.Type) (*beanlist, bool) {
+	if direct, ok := t.core[requiredType]; ok {
+		return direct, ok
+	} else if t.parent != nil {
+		return t.parent.findDirectRec(requiredType)
+	} else {
+		return nil, false
+	}
 }
 
 func registerBean(registry map[reflect.Type]*beanlist, classPtr reflect.Type, bean *bean) {
@@ -564,9 +575,17 @@ func multiple(err []error) error {
 
 var errNotFoundInterface = errors.New("not found")
 
-func searchCandidates(ifaceType reflect.Type, core map[reflect.Type]*beanlist) []*beanlist {
+func (t *context) searchCandidatesRec(ifaceType reflect.Type) []*beanlist {
+	list := t.searchCandidates(ifaceType)
+	if len(list) == 0 && t.parent != nil {
+		return t.parent.searchCandidatesRec(ifaceType)
+	}
+	return list
+}
+
+func (t *context) searchCandidates(ifaceType reflect.Type) []*beanlist {
 	var candidates []*beanlist
-	for _, list := range core {
+	for _, list := range t.core {
 		if list.head != nil && list.head.beanDef.implements(ifaceType) {
 			candidates = append(candidates, list)
 		}
