@@ -42,6 +42,10 @@ type injectionDef struct {
 	*/
 	fieldType reflect.Type
 	/**
+	Field is Slice of elements
+	*/
+	slice bool
+	/**
 	Lazy injection represented by function
 	*/
 	lazy bool
@@ -75,29 +79,150 @@ type injection struct {
 
 /**
 Inject value in to the field by using reflection
+Returns beanlist of used beans in this injection
 */
-func (t *injection) inject(impl *bean) error {
-	return t.injectionDef.inject(&t.value, impl)
+func (t *injection) inject(list *beanlist) error {
+	if list.head == nil {
+		return errors.Errorf("field '%s' in class '%v' can not be injected with nil bean", t.injectionDef.fieldName, t.injectionDef.class)
+	}
+
+	field := t.value.Field(t.injectionDef.fieldNum)
+	if !field.CanSet() {
+		return errors.Errorf("field '%s' in class '%v' is not public", t.injectionDef.fieldName, t.injectionDef.class)
+	}
+
+	if t.injectionDef.slice {
+		newSlice := field
+		var factorylist []*bean
+		list.forEach(func(instance *bean) {
+			if instance.beenFactory != nil {
+				factorylist = append(factorylist, instance)
+			} else {
+				newSlice = reflect.Append(newSlice, instance.valuePtr)
+			}
+		})
+		field.Set(newSlice)
+
+		for _, instance := range factorylist {
+			// register factory dependency for 'inject.bean' that is using 'factory'
+			t.bean.factoryDependencies = append(t.bean.factoryDependencies,
+				&factoryDependency{
+					factory: instance.beenFactory,
+					injection: func(service *bean) error {
+						field.Set(reflect.Append(field, instance.valuePtr))
+						return nil
+					},
+				})
+		}
+
+		return nil
+	}
+
+	impl, err := t.injectionDef.selectBean(list)
+	if err != nil {
+		return err
+	}
+
+	if impl.beenFactory != nil {
+		if t.injectionDef.lazy {
+			return errors.Errorf("lazy injection is not supported of type '%v' through factory '%v' in to '%v'", impl.beenFactory.factoryBean.ObjectType(), impl.beenFactory.factoryClassPtr, t.String())
+		}
+
+		// register factory dependency for 'inject.bean' that is using 'factory'
+		t.bean.factoryDependencies = append(t.bean.factoryDependencies,
+			&factoryDependency{
+				factory: impl.beenFactory,
+				injection: func(service *bean) error {
+					field.Set(service.valuePtr)
+					return nil
+				},
+			})
+
+		return nil
+	}
+
+	if t.injectionDef.lazy {
+		fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
+			if impl.lifecycle != BeanInitialized {
+				return []reflect.Value{reflect.Zero(t.injectionDef.fieldType)}
+			} else {
+				return []reflect.Value{impl.valuePtr}
+			}
+		})
+		field.Set(fn)
+	} else {
+		field.Set(impl.valuePtr)
+	}
+
+	// register dependency that 'inject.bean' is using if it is not lazy
+	if !t.injectionDef.lazy {
+		t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
+	}
+
+	return nil
 }
 
-func (t *injectionDef) inject(value *reflect.Value, impl *bean) error {
+func (t *injectionDef) inject(value *reflect.Value, list *beanlist) error {
 	field := value.Field(t.fieldNum)
-	if field.CanSet() {
-		if t.lazy {
-			fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
-				if impl.lifecycle != BeanInitialized {
-					return []reflect.Value{reflect.Zero(t.fieldType)}
-				} else {
-					return []reflect.Value{impl.valuePtr}
-				}
-			})
-			field.Set(fn)
-		} else {
-			field.Set(impl.valuePtr)
-		}
-		return nil
-	} else {
+
+	if !field.CanSet() {
 		return errors.Errorf("field '%s' in class '%v' is not public", t.fieldName, t.class)
+	}
+
+	if t.slice {
+		newSlice := field
+		list.forEach(func(instance *bean) {
+			if instance.beenFactory != nil {
+				newSlice = reflect.Append(newSlice, reflect.Zero(t.fieldType))
+			} else {
+				newSlice = reflect.Append(newSlice, instance.valuePtr)
+			}
+		})
+		field.Set(newSlice)
+		return nil
+	}
+
+	if !list.single() {
+		return errors.Errorf("can not inject to field '%s' in class '%v' non single bean '%+v'", t.fieldName, t.class, list)
+	}
+	impl := list.head
+
+	if t.lazy {
+		fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
+			if impl.lifecycle != BeanInitialized {
+				return []reflect.Value{reflect.Zero(t.fieldType)}
+			} else {
+				return []reflect.Value{impl.valuePtr}
+			}
+		})
+		field.Set(fn)
+	} else {
+		field.Set(impl.valuePtr)
+	}
+	return nil
+
+}
+
+func (t *injectionDef) selectBean(list *beanlist) (*bean, error) {
+	if list.single() {
+		return list.head, nil
+	}
+	if t.specificBean == "" {
+		return nil, errors.Errorf("field '%s' in class '%v' can not be injected with multiple candidates %+v", t.fieldName, t.class, list.list())
+	}
+	var candidates []*bean
+	list.forEach(func(b *bean) {
+		if t.specificBean == b.name {
+			candidates = append(candidates, b)
+		}
+	})
+	switch len(candidates) {
+	case 0:
+		return nil, errors.Errorf("field '%s' in class '%v' with specific bean '%s' can not find candidates", t.fieldName, t.class, t.specificBean)
+	case 1:
+		return candidates[0], nil
+	default:
+		return nil, errors.Errorf("field '%s' in class '%v' with specific bean '%s' can not be injected with multiple candidates %+v", t.fieldName, t.class, t.specificBean, candidates)
 	}
 }
 

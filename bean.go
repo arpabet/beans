@@ -19,6 +19,7 @@
 package beans
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
 	"strings"
@@ -45,7 +46,8 @@ type beanDef struct {
 }
 
 const (
-	BeanCreated int32 = iota
+	BeanAllocated int32 = iota
+	BeanCreated
 	BeanConstructing
 	BeanInitialized
 	BeanDestroyed
@@ -53,12 +55,22 @@ const (
 
 type bean struct {
 	/**
-	Instance to the bean
+	Name of the bean
+	*/
+	name string
+
+	/**
+	Factory of the bean if exist
+	*/
+	beenFactory *factory
+
+	/**
+	Instance to the bean, could be empty if beenFactory exist
 	*/
 	obj interface{}
 
 	/**
-	Reflect instance to the pointer or interface of the bean
+	Reflect instance to the pointer or interface of the bean, could be empty if beenFactory exist
 	*/
 	valuePtr reflect.Value
 
@@ -75,16 +87,25 @@ type bean struct {
 	/**
 	List of beans that should initialize before current bean
 	*/
-	dependencies []*bean
+	dependencies []*beanlist
 
 	/**
 	List of factory beans that should initialize before current bean
 	*/
 	factoryDependencies []*factoryDependency
+
+	/**
+	Next bean in the list
+	*/
+	next *bean
 }
 
 func (t *bean) String() string {
-	return t.beanDef.classPtr.String()
+	if t.beenFactory != nil {
+		return fmt.Sprintf("<FactoryBean %s->%s>", t.beenFactory.factoryClassPtr, t.beanDef.classPtr)
+	} else {
+		return fmt.Sprintf("<Bean %s>", t.beanDef.classPtr)
+	}
 }
 
 /**
@@ -100,12 +121,10 @@ func (t *beanDef) implements(ifaceType reflect.Type) bool {
 }
 
 type factory struct {
-
 	/**
-	Factory bean
+	Bean associated with Factory in context
 	*/
 	bean *bean
-
 	/**
 	Instance to the factory bean
 	*/
@@ -122,52 +141,114 @@ type factory struct {
 	factoryBean FactoryBean
 
 	/**
-	Singleton object
+	Created bean instances by this factory
 	*/
-	singletonObj interface{}
+	instances *beanlist
+}
 
-	/**
-	Singleton bean
-	*/
-	singletonBean *bean
+type beanlist struct {
+	head *bean
+	tail *bean
+}
+
+func oneBean(bean *bean) *beanlist {
+	return &beanlist{
+		head: bean,
+		tail: bean,
+	}
+}
+
+func (t *beanlist) append(bean *bean) {
+	if t.tail == nil {
+		t.head, t.tail = bean, bean
+	} else {
+		t.tail.next = bean
+		t.tail = bean
+	}
+}
+
+func (t *beanlist) single() bool {
+	return t.head == t.tail
+}
+
+func (t *beanlist) list() []*bean {
+	var list []*bean
+	for b := t.head; b != nil; b = b.next {
+		list = append(list, b)
+		if b == t.tail {
+			break
+		}
+	}
+	return list
+}
+
+func (t *beanlist) forEach(cb func(*bean)) {
+	for b := t.head; b != nil; b = b.next {
+		cb(b)
+		if b == t.tail {
+			break
+		}
+	}
+}
+
+func (t *beanlist) hasName(name string) bool {
+	for b := t.head; b != nil; b = b.next {
+		if b.name == name {
+			return true
+		}
+		if b == t.tail {
+			break
+		}
+	}
+	return false
+}
+
+func (t *beanlist) String() string {
+	if t.head != nil {
+		return t.head.String()
+	}
+	return ""
 }
 
 func (t *factory) String() string {
 	return t.factoryClassPtr.String()
 }
 
-func (t *factory) ctor() (*bean, error) {
-	if !t.factoryBean.Singleton() {
-		t.singletonObj = nil
-	}
-	if t.singletonObj == nil {
-		var err error
-		t.singletonObj, err = t.factoryBean.Object()
-		if err != nil {
-			return nil, errors.Errorf("factory bean '%v' failed to create bean '%v', %v", t.factoryClassPtr, t.factoryBean.ObjectType(), err)
-		}
-		producedClassPtr := reflect.TypeOf(t.singletonObj)
-		if producedClassPtr != t.factoryBean.ObjectType() && !producedClassPtr.Implements(t.factoryBean.ObjectType()) {
-			return nil, errors.Errorf("factory bean '%v' produced '%v' object that does not implement or equal '%v'", t.factoryClassPtr, producedClassPtr, t.factoryBean.ObjectType())
-		}
-		if t.singletonBean != nil {
-			t.singletonBean = &bean{
-				obj:       t.singletonObj,
-				valuePtr:  t.singletonBean.valuePtr,
-				beanDef:   t.singletonBean.beanDef,
-				lifecycle: BeanCreated,
-			}
+func (t *factory) ctor() (*bean, bool, error) {
+	var b *bean
+	if t.factoryBean.Singleton() {
+		if t.instances.head.obj == nil {
+			b = t.instances.head
 		} else {
-			t.singletonBean, err = investigate(t.singletonObj, producedClassPtr)
-			if err != nil {
-				return nil, errors.Errorf("factory bean '%v' produced invalid bean '%v', %v", t.factoryClassPtr, producedClassPtr, err)
+			return t.instances.head, false, nil
+		}
+	} else {
+		if t.instances.head.obj == nil {
+			b = t.instances.head
+		} else {
+			b = &bean{
+				name:        t.instances.head.beanDef.classPtr.String(),
+				beenFactory: t.instances.head.beenFactory,
+				beanDef:     t.instances.head.beanDef,
 			}
-			for _, injectDef := range t.singletonBean.beanDef.fields {
-				return nil, errors.Errorf("factory bean '%v' produced bean '%v' with 'inject' annotated field '%v' on position %d that is should be injected by the factory itself", t.factoryClassPtr, producedClassPtr, injectDef.fieldName, injectDef.fieldNum)
-			}
+			t.instances.tail.next = b
+			t.instances.tail = b
 		}
 	}
-	return t.singletonBean, nil
+
+	obj, err := t.factoryBean.Object()
+	if err != nil {
+		return nil, false, errors.Errorf("factory bean '%v' failed to create bean '%v', %v", t.factoryClassPtr, t.factoryBean.ObjectType(), err)
+	}
+
+	b.obj = obj
+	b.lifecycle = BeanInitialized
+	if namedBean, ok := obj.(NamedBean); ok {
+		b.name = namedBean.BeanName()
+	}
+	b.valuePtr = reflect.ValueOf(obj)
+
+	return b, true, nil
 }
 
 type factoryDependency struct {
@@ -188,6 +269,10 @@ type factoryDependency struct {
 Investigate bean by using reflection
 */
 func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
+	name := classPtr.String()
+	if namedBean, ok := obj.(NamedBean); ok {
+		name = namedBean.BeanName()
+	}
 	var fields []*injectionDef
 	var notImplements []reflect.Type
 	valuePtr := reflect.ValueOf(obj)
@@ -218,7 +303,13 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 			}
 			kind := field.Type.Kind()
 			fieldType := field.Type
-			fieldLazy := false
+			var fieldLazy, fieldSlice bool
+			if kind == reflect.Slice {
+				fmt.Printf("field.Name = %s, field.Kind = %v, key=%v\n", field.Name, field.Type.Kind(), field.Type.Elem())
+				fieldSlice = true
+				fieldType = field.Type.Elem()
+				kind = fieldType.Kind()
+			}
 			if kind == reflect.Func && field.Type.NumIn() == 0 && field.Type.NumOut() == 1 {
 				fieldType = field.Type.Out(0)
 				fieldLazy = true
@@ -233,6 +324,7 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				fieldName:    field.Name,
 				fieldType:    fieldType,
 				lazy:         fieldLazy,
+				slice:        fieldSlice,
 				optional:     optionalBean,
 				specificBean: specificBean,
 			}
@@ -240,6 +332,7 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 		}
 	}
 	return &bean{
+		name:     name,
 		obj:      obj,
 		valuePtr: valuePtr,
 		beanDef: &beanDef{

@@ -123,8 +123,10 @@ func TestPostConstruct(t *testing.T) {
 
 	defer ctx.Close()
 
-	client := ctx.MustBean(ClientServiceClass).(ClientService)
-	client.Run("t3st")
+	client := ctx.Bean(ClientServiceClass)
+	require.Equal(t, 1, len(client))
+
+	client[0].(ClientService).Run("t3st")
 
 }
 

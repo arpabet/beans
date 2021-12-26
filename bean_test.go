@@ -32,10 +32,10 @@ func TestBeanByPointer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	second, ok := ctx.Bean(SecondBeanClass)
-	require.True(t, ok)
+	second := ctx.Bean(SecondBeanClass)
+	require.Equal(t, 1, len(second))
 
-	second.(*secondBean).Run()
+	second[0].(*secondBean).Run()
 
 }
 
@@ -51,7 +51,7 @@ func TestMultipleBeanByPointer(t *testing.T) {
 
 	require.Error(t, err)
 	require.Nil(t, ctx)
-	require.True(t, strings.Contains(err.Error(), "already"))
+	require.True(t, strings.Contains(err.Error(), "multiple candidates"))
 	println(err.Error())
 
 }
@@ -115,15 +115,15 @@ func TestBeanByInterface(t *testing.T) {
 
 	require.NoError(t, err)
 
-	firstService, ok := ctx.Bean(FirstServiceClass)
-	require.True(t, ok)
+	firstService := ctx.Bean(FirstServiceClass)
+	require.Equal(t, 1, len(firstService))
 
-	firstService.(FirstService).First()
+	firstService[0].(FirstService).First()
 
-	secondService, ok := ctx.Bean(SecondServiceClass)
-	require.True(t, ok)
+	secondService := ctx.Bean(SecondServiceClass)
+	require.Equal(t, 1, len(secondService))
 
-	secondService.(SecondService).Second()
+	secondService[0].(SecondService).Second()
 
 }
 
@@ -169,10 +169,10 @@ func TestSpecificBeanByInterface(t *testing.T) {
 
 	require.NoError(t, err)
 
-	firstService, ok := ctx.Bean(FirstServiceClass)
-	require.True(t, ok)
+	firstService := ctx.Bean(FirstServiceClass)
+	require.Equal(t, 1, len(firstService))
 
-	firstService.(FirstService).First()
+	firstService[0].(FirstService).First()
 
 }
 

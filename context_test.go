@@ -47,16 +47,16 @@ func TestCreateEmpty(t *testing.T) {
 	require.NotNil(t, ctx)
 	require.Equal(t, 1, len(ctx.Core()))
 
-	c, ok := ctx.Bean(beans.ContextClass)
-	require.True(t, ok)
-	require.NotNil(t, c)
-	require.Equal(t, ctx, c)
+	c := ctx.Bean(beans.ContextClass)
+	require.Equal(t, 1, len(c))
+	require.Equal(t, ctx, c[0])
 
 }
 
 var StorageClass = reflect.TypeOf((*Storage)(nil)).Elem()
 
 type Storage interface {
+	beans.NamedBean
 	Load(key string) string
 	Store(key, value string)
 }
@@ -64,6 +64,7 @@ type Storage interface {
 var ConfigServiceClass = reflect.TypeOf((*ConfigService)(nil)).Elem()
 
 type ConfigService interface {
+	beans.NamedBean
 	GetConfig(key string) string
 	SetConfig(key, value string)
 }
@@ -86,6 +87,10 @@ type storageImpl struct {
 	internal sync.Map
 }
 
+func (t *storageImpl) BeanName() string {
+	return "storage"
+}
+
 func (t *storageImpl) Load(key string) string {
 	t.Logger.Printf("Load %s\n", key)
 	if val, ok := t.internal.Load(key); ok {
@@ -102,6 +107,10 @@ func (t *storageImpl) Store(key, value string) {
 
 type configServiceImpl struct {
 	Storage `inject`
+}
+
+func (t *configServiceImpl) BeanName() string {
+	return "configService"
 }
 
 func (t *configServiceImpl) GetConfig(key string) string {
@@ -177,14 +186,15 @@ func TestCreateDoubleObjects(t *testing.T) {
 		  needed to define usage of interfaces
 		*/
 		&struct {
-			Storage `inject`
+			Storage Storage `inject`
 		}{},
 	)
 
 	require.NotNil(t, err)
 	require.Nil(t, ctx)
-	require.True(t, strings.Contains(err.Error(), "repeated"))
-	require.True(t, strings.Contains(err.Error(), "*beans_test.storageImpl"))
+	require.True(t, strings.Contains(err.Error(), "multiple candidates"))
+	require.True(t, strings.Contains(err.Error(), "beans_test.Storage"))
+	println(err.Error())
 }
 
 func TestCreate(t *testing.T) {
@@ -211,34 +221,34 @@ func TestCreate(t *testing.T) {
 	require.NotNil(t, ctx)
 	require.Equal(t, 7, len(ctx.Core()))
 
-	beans := ctx.Lookup("beans_test.Storage")
+	beans := ctx.Lookup("storage")
 	require.Equal(t, 1, len(beans))
 	storageInstance := beans[0].(*storageImpl)
 	require.NotNil(t, storageInstance)
 	require.Equal(t, storageInstance.Logger, logger)
-	require.Equal(t, storageInstance, ctx.MustBean(StorageClass))
+	require.Equal(t, storageInstance, ctx.Bean(StorageClass)[0])
 
-	beans = ctx.Lookup("beans_test.ConfigService")
+	beans = ctx.Lookup("configService")
 	require.Equal(t, 1, len(beans))
 	configServiceInstance := beans[0].(*configServiceImpl)
 	require.NotNil(t, configServiceInstance)
 	require.Equal(t, configServiceInstance.Storage, storageInstance)
-	require.Equal(t, configServiceInstance, ctx.MustBean(ConfigServiceClass))
+	require.Equal(t, configServiceInstance, ctx.Bean(ConfigServiceClass)[0])
 
-	beans = ctx.Lookup("beans_test.UserService")
+	beans = ctx.Lookup("*beans_test.userServiceImpl")
 	require.Equal(t, 1, len(beans))
 	userServiceInstance := beans[0].(*userServiceImpl)
 	require.NotNil(t, userServiceInstance)
 	require.Equal(t, userServiceInstance.Storage, storageInstance)
 	require.Equal(t, userServiceInstance.ConfigService, configServiceInstance)
-	require.Equal(t, userServiceInstance, ctx.MustBean(UserServiceClass))
+	require.Equal(t, userServiceInstance, ctx.Bean(UserServiceClass)[0])
 
-	beans = ctx.Lookup("beans_test.AppService")
+	beans = ctx.Lookup("*beans_test.appServiceImpl")
 	require.Equal(t, 1, len(beans))
 	appServiceInstance := beans[0].(*appServiceImpl)
 	require.NotNil(t, appServiceInstance)
 	require.Equal(t, ctx, appServiceInstance.GetContext())
-	require.Equal(t, appServiceInstance, ctx.MustBean(AppServiceClass))
+	require.Equal(t, appServiceInstance, ctx.Bean(AppServiceClass)[0])
 
 }
 
@@ -333,8 +343,8 @@ func TestMissingInterfaceBean(t *testing.T) {
 	*/
 	require.Equal(t, 0, len(beans))
 
-	_, ok := ctx.Bean(UserServiceClass)
-	require.True(t, ok)
+	b := ctx.Bean(UserServiceClass)
+	require.Equal(t, 1, len(b))
 
 }
 

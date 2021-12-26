@@ -43,10 +43,10 @@ func TestOptionalBeanByPointer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	b, ok := ctx.Bean(BeanBClass)
-	require.True(t, ok)
+	b := ctx.Bean(BeanBClass)
+	require.Equal(t, 1, len(b))
 
-	require.Nil(t, b.(*beanB).BeanA)
+	require.Nil(t, b[0].(*beanB).BeanA)
 }
 
 var BeanAServiceClass = reflect.TypeOf((*BeanAService)(nil)).Elem()
@@ -81,8 +81,8 @@ func TestOptionalBeanByInterface(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	b, ok := ctx.Bean(BeanBServiceClass)
-	require.True(t, ok)
+	b := ctx.Bean(BeanBServiceClass)
+	require.Equal(t, 1, len(b))
 
-	require.Nil(t, b.(*beanBServiceImpl).BeanAService)
+	require.Nil(t, b[0].(*beanBServiceImpl).BeanAService)
 }

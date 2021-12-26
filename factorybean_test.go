@@ -220,9 +220,9 @@ func TestFactoryInterfaceBean(t *testing.T) {
 
 	defer ctx.Close()
 
-	bc, ok := ctx.Bean(BeanConstructedClass)
-	require.True(t, ok)
+	bc := ctx.Bean(BeanConstructedClass)
+	require.Equal(t, 1, len(bc))
 
-	err = bc.(BeanConstructed).Run()
+	err = bc[0].(BeanConstructed).Run()
 	require.NoError(t, err)
 }

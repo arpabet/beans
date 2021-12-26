@@ -24,6 +24,11 @@ var ContextClass = reflect.TypeOf((*Context)(nil)).Elem()
 
 type Context interface {
 	/**
+	Gets parent context if exist
+	*/
+	Parent() (Context, bool)
+
+	/**
 	Create new context with additional beans based on current one
 	*/
 	Extend(scan ...interface{}) (Context, error)
@@ -36,7 +41,6 @@ type Context interface {
 	/**
 	Get list of all registered instances on creation of context with scope 'core'
 	*/
-
 	Core() []reflect.Type
 
 	/**
@@ -47,25 +51,20 @@ type Context interface {
 		type UserService interface {
 		}
 
-		b, ok := ctx.Bean(reflect.TypeOf((*app.UserService)(nil)).Elem())
+		list := ctx.Bean(reflect.TypeOf((*app.UserService)(nil)).Elem())
 	*/
-
-	Bean(typ reflect.Type) (bean interface{}, ok bool)
-
-	/**
-	Panic if bean not found, use this method for tests only
-	*/
-	MustBean(typ reflect.Type) interface{}
+	Bean(typ reflect.Type) []interface{}
 
 	/**
 	Lookup registered beans in context by name.
 	The name is the local package plus name of the interface, for example 'app.UserService'
+	Or if bean implements NamedBean interface the name of it.
 
 	Example:
 		beans := ctx.Bean("app.UserService")
+		beans := ctx.Bean("userService")
 	*/
-
-	Lookup(iface string) []interface{}
+	Lookup(name string) []interface{}
 
 	/**
 	Inject fields in to the obj on runtime that is not part of core context.
@@ -142,7 +141,7 @@ This interface used to collect all beans with similar type in map, where the nam
 type NamedBean interface {
 
 	/**
-	Returns unique bean name
+	Returns bean name
 	*/
 	BeanName() string
 }

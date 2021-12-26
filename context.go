@@ -33,10 +33,15 @@ var Verbose bool
 type context struct {
 
 	/**
-		All instances scanned during creation of context.
-	    No modifications on runtime.
+	Parent context if exist
 	*/
-	core map[reflect.Type]*bean
+	parent *context
+
+	/**
+		All instances scanned during creation of context.
+	    No modifications on runtime allowed.
+	*/
+	core map[reflect.Type]*beanlist
 
 	/**
 	List of beans in initialization order that should depose on close
@@ -62,12 +67,11 @@ type context struct {
 func Create(scan ...interface{}) (Context, error) {
 
 	beansByName := make(map[string][]*bean)
-	beansByType := make(map[reflect.Type]*bean)
+	beansByType := make(map[reflect.Type]*beanlist)
 
-	core := make(map[reflect.Type]*bean)
+	core := make(map[reflect.Type]*beanlist)
 	pointers := make(map[reflect.Type][]*injection)
 	interfaces := make(map[reflect.Type][]*injection)
-	factories := make(map[reflect.Type]*factory)
 
 	ctx := &context{
 		core: core,
@@ -84,16 +88,25 @@ func Create(scan ...interface{}) (Context, error) {
 			classPtr: reflect.TypeOf(ctx),
 		},
 	}
-	core[ctxBean.beanDef.classPtr] = ctxBean
+	core[ctxBean.beanDef.classPtr] = oneBean(ctxBean)
 
 	// scan
 	err := forEach("", scan, func(pos string, obj interface{}) error {
+
 		classPtr := reflect.TypeOf(obj)
-		var objClassPtr reflect.Type
+
+		defer func() {
+			if r := recover(); r != nil {
+				fmt.Printf("Recover from object '%s' scan error %v\n", classPtr.String(), r)
+			}
+		}()
+
+		var elemClassPtr reflect.Type
 		factoryBean, isFactoryBean := obj.(FactoryBean)
 		if isFactoryBean {
-			objClassPtr = factoryBean.ObjectType()
+			elemClassPtr = factoryBean.ObjectType()
 		}
+
 		if Verbose {
 			if isFactoryBean {
 				var info string
@@ -102,65 +115,74 @@ func Create(scan ...interface{}) (Context, error) {
 				} else {
 					info = "non-singleton"
 				}
-				fmt.Printf("FactoryBean %v produce %s %v\n", classPtr, info, objClassPtr)
+				fmt.Printf("FactoryBean %v produce %s %v\n", classPtr, info, elemClassPtr)
 			} else {
 				fmt.Printf("Bean %v\n", classPtr)
 			}
 		}
+
+		if isFactoryBean {
+			elemClassKind := elemClassPtr.Kind()
+			if elemClassKind != reflect.Ptr && elemClassKind != reflect.Interface {
+				return errors.Errorf("factory bean '%v' on position '%s' can produce ptr or interface, but object type is '%v'", classPtr, pos, elemClassPtr)
+			}
+		}
+
 		if classPtr.Kind() != reflect.Ptr {
 			return errors.Errorf("non-pointer instance is not allowed on position '%s' of type '%v'", pos, classPtr)
 		}
-		if already, ok := core[classPtr]; ok {
-			return errors.Errorf("instance '%v' already registered, detected repeated instance on position '%s' of type '%v'", classPtr, pos, already.beanDef.classPtr)
-		}
-		if isFactoryBean {
-			objClassKind := objClassPtr.Kind()
-			if objClassKind != reflect.Ptr && objClassKind != reflect.Interface {
-				return errors.Errorf("factory bean '%v' on position '%s' can produce ptr or interface, but object type is '%v'", classPtr, pos, objClassPtr)
-			}
-			if already, ok := factories[objClassPtr]; ok {
-				return errors.Errorf("factory '%v' already registered for instance '%v', detected repeated factory on position '%s' of type '%v'", already.factoryClassPtr, objClassPtr, pos, classPtr)
-			}
-		}
+
 		/**
-		Create bean
+		Create bean from object
 		*/
-		bean, err := investigate(obj, classPtr)
+		objBean, err := investigate(obj, classPtr)
 		if err != nil {
 			return err
 		}
-		if len(bean.beanDef.fields) > 0 {
-			value := bean.valuePtr.Elem()
-			for _, injectDef := range bean.beanDef.fields {
+		if len(objBean.beanDef.fields) > 0 {
+			value := objBean.valuePtr.Elem()
+			for _, injectDef := range objBean.beanDef.fields {
 				if Verbose {
 					fmt.Printf("	Field %v\n", injectDef.fieldType)
 				}
 				switch injectDef.fieldType.Kind() {
 				case reflect.Ptr:
-					pointers[injectDef.fieldType] = append(pointers[injectDef.fieldType], &injection{bean, value, injectDef})
+					pointers[injectDef.fieldType] = append(pointers[injectDef.fieldType], &injection{objBean, value, injectDef})
 				case reflect.Interface:
-					interfaces[injectDef.fieldType] = append(interfaces[injectDef.fieldType], &injection{bean, value, injectDef})
+					interfaces[injectDef.fieldType] = append(interfaces[injectDef.fieldType], &injection{objBean, value, injectDef})
 				default:
 					return errors.Errorf("injecting not a pointer or interface on field type '%v' at position '%s' in %v", injectDef.fieldType, pos, classPtr)
 				}
 			}
 		}
+
 		/*
-			Register bean
+			Register factory if needed
 		*/
-		core[classPtr] = bean
 		if isFactoryBean {
-			/*
-				Register factory bean
-			*/
-			factories[objClassPtr] = &factory{
-				bean:            bean,
+			f := &factory{
+				bean:            objBean,
 				factoryObj:      obj,
 				factoryClassPtr: classPtr,
 				factoryBean:     factoryBean,
 			}
+			elemBean := &bean{
+				name:        elemClassPtr.String(),
+				beenFactory: f,
+				beanDef: &beanDef{
+					classPtr: elemClassPtr,
+				},
+				lifecycle: BeanAllocated,
+			}
+			f.instances = oneBean(elemBean)
+			// we can have singleton or multiple beans in context produced by this factory, let's allocate reference for injections even if those beans are still not exist
+			registerBean(core, elemClassPtr, elemBean)
 		}
 
+		/*
+			Register bean itself
+		*/
+		registerBean(core, classPtr, objBean)
 		return nil
 	})
 
@@ -169,60 +191,30 @@ func Create(scan ...interface{}) (Context, error) {
 	}
 
 	// direct match
-	var found []reflect.Type
 	for requiredType, injects := range pointers {
 		if direct, ok := core[requiredType]; ok {
 
 			beansByType[requiredType] = direct
-			name := requiredType.String()
-			beansByName[name] = append(beansByName[name], direct)
+			direct.forEach(func(b *bean) {
+				if b.beenFactory == nil {
+					beansByName[b.name] = append(beansByName[b.name], b)
+				}
+			})
 
 			if Verbose {
-				fmt.Printf("Inject '%v' by pointer '%v' in to %+v\n", requiredType, direct.beanDef.classPtr, injects)
+				fmt.Printf("Inject '%v' by pointer '%+v' in to %+v\n", requiredType, direct, injects)
 			}
 
 			for _, inject := range injects {
 				if err := inject.inject(direct); err != nil {
-					return nil, err
-				}
-				// register dependency that 'inject.bean' is using 'direct' if it not lazy
-				if !inject.injectionDef.lazy {
-					inject.bean.dependencies = append(inject.bean.dependencies, direct)
+					return nil, errors.Errorf("required type '%s' injection error, %v", requiredType, err)
 				}
 			}
-			found = append(found, requiredType)
-
-		} else if factory, ok := factories[requiredType]; ok {
-
-			if Verbose {
-				fmt.Printf("FactoryInject '%v' by pointer '%v' through factory '%v' in to %+v\n", requiredType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, injects)
-			}
-
-			for _, inject := range injects {
-				if inject.injectionDef.lazy {
-					return nil, errors.Errorf("lazy injection is not supported for type '%v' by pointer '%v' through factory '%v' in to '%v'", requiredType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, inject)
-				}
-				// register factory dependency for 'inject.bean' that is using 'factory'
-				inject.bean.factoryDependencies = append(inject.bean.factoryDependencies,
-					&factoryDependency{
-						factory: factory,
-						injection: func(direct *bean) error {
-
-							beansByType[requiredType] = direct
-							name := requiredType.String()
-							beansByName[name] = append(beansByName[name], direct)
-
-							return inject.inject(direct)
-						},
-					})
-			}
-
-			found = append(found, requiredType)
 
 		} else {
 
 			if Verbose {
-				fmt.Printf("No found bean '%v' in context\n", requiredType)
+				fmt.Printf("Bean '%v' not found in context\n", requiredType)
 			}
 
 			var required []*injection
@@ -246,15 +238,11 @@ func Create(scan ...interface{}) (Context, error) {
 	// interface match
 	for ifaceType, injects := range interfaces {
 
-		candidates, err := searchCandidates(ifaceType, core, factories)
-		if err != nil {
-			return nil, errors.Errorf("can not find candidates for '%v' interface, %v", ifaceType, err)
-		}
-
+		candidates := searchCandidates(ifaceType, core)
 		if len(candidates) == 0 {
 
 			if Verbose {
-				fmt.Printf("No found bean for interface '%v' in context\n", ifaceType)
+				fmt.Printf("No found bean candidates for interface '%v' in context\n", ifaceType)
 			}
 
 			var required []*injection
@@ -269,19 +257,19 @@ func Create(scan ...interface{}) (Context, error) {
 			}
 
 			if len(required) > 0 {
-				return nil, errors.Errorf("can not find implementation for '%v' interface required by '%+v'", ifaceType, required)
+				return nil, errors.Errorf("can not find candidates for '%v' interface required by '%+v'", ifaceType, required)
 			}
 
 			continue
 		}
 
 		for _, candidate := range candidates {
-			if candidate.bean != nil {
-				service := candidate.bean
-				beansByType[ifaceType] = service
-				name := ifaceType.String()
-				beansByName[name] = append(beansByName[name], service)
-			}
+			beansByType[ifaceType] = candidate
+			candidate.forEach(func(b *bean) {
+				if b.beenFactory == nil {
+					beansByName[b.name] = append(beansByName[b.name], b)
+				}
+			})
 		}
 
 		for _, inject := range injects {
@@ -291,44 +279,12 @@ func Create(scan ...interface{}) (Context, error) {
 				return nil, err
 			}
 
-			if candidate.bean != nil {
+			if Verbose {
+				fmt.Printf("Inject '%v' by implementation '%+v' in to %+v\n", ifaceType, candidate, inject)
+			}
 
-				service := candidate.bean
-				if Verbose {
-					fmt.Printf("Inject '%v' by implementation '%v' in to %+v\n", ifaceType, service.beanDef.classPtr, injects)
-				}
-
-				if err := inject.inject(service); err != nil {
-					return nil, err
-				}
-				// register dependency that 'inject.bean' is using 'service' if not lazy
-				if !inject.injectionDef.lazy {
-					inject.bean.dependencies = append(inject.bean.dependencies, service)
-				}
-
-			} else if candidate.factory != nil {
-
-				factory := candidate.factory
-				if Verbose {
-					fmt.Printf("FactoryInject '%v' by implementation '%v' through factory '%v' in to %+v\n", ifaceType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, injects)
-				}
-
-				if inject.injectionDef.lazy {
-					return nil, errors.Errorf("lazy injection is not supported for type '%v' by implementation '%v' through factory '%v' in to '%v'", ifaceType, factory.factoryBean.ObjectType(), factory.factoryClassPtr, inject)
-				}
-				// register factory dependency for 'inject.bean' that is using 'factory'
-				inject.bean.factoryDependencies = append(inject.bean.factoryDependencies,
-					&factoryDependency{
-						factory: factory,
-						injection: func(service *bean) error {
-
-							beansByType[ifaceType] = service
-							name := ifaceType.String()
-							beansByName[name] = append(beansByName[name], service)
-
-							return inject.inject(service)
-						},
-					})
+			if err := inject.inject(candidate); err != nil {
+				return nil, errors.Errorf("interface '%s' injection error, %v", ifaceType, err)
 			}
 
 		}
@@ -342,6 +298,14 @@ func Create(scan ...interface{}) (Context, error) {
 		return ctx, nil
 	}
 
+}
+
+func registerBean(registry map[reflect.Type]*beanlist, classPtr reflect.Type, bean *bean) {
+	if list, ok := registry[classPtr]; ok {
+		list.append(bean)
+	} else {
+		registry[classPtr] = oneBean(bean)
+	}
 }
 
 func forEach(initialPos string, scan []interface{}, cb func(i string, obj interface{}) error) error {
@@ -369,6 +333,10 @@ func forEach(initialPos string, scan []interface{}, cb func(i string, obj interf
 	return nil
 }
 
+func (t *context) Parent() (Context, bool) {
+	return nil, false
+}
+
 func (t *context) Extend(scan ...interface{}) (Context, error) {
 	return t, nil
 }
@@ -381,20 +349,16 @@ func (t *context) Core() []reflect.Type {
 	return list
 }
 
-func (t *context) Bean(typ reflect.Type) (interface{}, bool) {
-	if b, ok := t.getBean(typ); ok {
-		return b.obj, true
-	} else {
-		return nil, false
+func (t *context) Bean(typ reflect.Type) []interface{} {
+	b, ok := t.getBean(typ)
+	if !ok {
+		return []interface{}{}
 	}
-}
-
-func (t *context) MustBean(typ reflect.Type) interface{} {
-	if bean, ok := t.Bean(typ); ok {
-		return bean
-	} else {
-		panic(fmt.Sprintf("bean not found %v", typ))
-	}
+	var obj []interface{}
+	b.forEach(func(b *bean) {
+		obj = append(obj, b.obj)
+	})
+	return obj
 }
 
 func (t *context) Lookup(iface string) []interface{} {
@@ -428,29 +392,29 @@ func (t *context) Inject(obj interface{}) error {
 }
 
 // multi-threading safe
-func (t *context) getBean(ifaceType reflect.Type) (*bean, bool) {
+func (t *context) getBean(ifaceType reflect.Type) (*beanlist, bool) {
 	if b, ok := t.registry.findByType(ifaceType); ok {
 		return b, true
 	} else if b, ok := t.core[ifaceType]; ok {
 		// pointer match with core
-		t.registry.addBean(ifaceType, b)
+		t.registry.addBeanList(ifaceType, b)
 		return b, true
 	} else {
 		b, err := searchByInterface(ifaceType, t.core)
 		if err != nil {
 			return nil, false
 		}
-		t.registry.addBean(ifaceType, b)
+		t.registry.addBeanList(ifaceType, b)
 		return b, true
 	}
 }
 
 // multi-threading safe
-func (t *context) cache(instance interface{}, classPtr reflect.Type) (*beanDef, error) {
+func (t *context) cache(obj interface{}, classPtr reflect.Type) (*beanDef, error) {
 	if bd, ok := t.runtimeCache.Load(classPtr); ok {
 		return bd.(*beanDef), nil
 	} else {
-		b, err := investigate(instance, classPtr)
+		b, err := investigate(obj, classPtr)
 		if err != nil {
 			return nil, err
 		}
@@ -480,7 +444,19 @@ func reverseStack(stack []*bean) []*bean {
 	return out
 }
 
-func (t *context) initalizeBean(bean *bean, stack []*bean) error {
+func (t *context) constructBeanList(list *beanlist, stack []*bean) error {
+	for bean := list.head; bean != nil; bean = bean.next {
+		if err := t.constructBean(bean, stack); err != nil {
+			return err
+		}
+		if bean == list.tail {
+			break
+		}
+	}
+	return nil
+}
+
+func (t *context) constructBean(bean *bean, stack []*bean) error {
 	if bean.lifecycle == BeanInitialized {
 		return nil
 	}
@@ -497,12 +473,15 @@ func (t *context) initalizeBean(bean *bean, stack []*bean) error {
 		bean.lifecycle = BeanInitialized
 	}()
 	for _, factoryDep := range bean.factoryDependencies {
-		if err := t.initalizeBean(factoryDep.factory.bean, append(stack, bean)); err != nil {
+		if err := t.constructBean(factoryDep.factory.bean, append(stack, bean)); err != nil {
 			return err
 		}
-		bean, err := factoryDep.factory.ctor()
+		bean, created, err := factoryDep.factory.ctor()
 		if err != nil {
 			return errors.Errorf("factory ctor '%v' failed, %v", factoryDep.factory.factoryClassPtr, err)
+		}
+		if created {
+			t.registry.addBeanByName(bean)
 		}
 		err = factoryDep.injection(bean)
 		if err != nil {
@@ -511,7 +490,7 @@ func (t *context) initalizeBean(bean *bean, stack []*bean) error {
 	}
 
 	for _, dep := range bean.dependencies {
-		if err := t.initalizeBean(dep, append(stack, bean)); err != nil {
+		if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
 			return err
 		}
 	}
@@ -533,8 +512,8 @@ func (t *context) addDisposable(bean *bean) {
 }
 
 func (t *context) postConstruct() error {
-	for _, bean := range t.core {
-		if err := t.initalizeBean(bean, nil); err != nil {
+	for _, list := range t.core {
+		if err := t.constructBeanList(list, nil); err != nil {
 			return err
 		}
 	}
@@ -571,36 +550,21 @@ func multiple(err []error) error {
 
 var errNotFoundInterface = errors.New("not found")
 
-type candidate struct {
-	name    string
-	bean    *bean
-	factory *factory
-}
-
-func (t *candidate) String() string {
-	return t.name
-}
-
-func searchCandidates(ifaceType reflect.Type, core map[reflect.Type]*bean, factories map[reflect.Type]*factory) ([]*candidate, error) {
-	var candidates []*candidate
-	for _, bean := range core {
-		if bean.beanDef.implements(ifaceType) {
-			candidates = append(candidates, &candidate{name: bean.beanDef.classPtr.String(), bean: bean})
+func searchCandidates(ifaceType reflect.Type, core map[reflect.Type]*beanlist) []*beanlist {
+	var candidates []*beanlist
+	for _, list := range core {
+		if list.head != nil && list.head.beanDef.implements(ifaceType) {
+			candidates = append(candidates, list)
 		}
 	}
-	for objTyp, factory := range factories {
-		if objTyp.Implements(ifaceType) {
-			candidates = append(candidates, &candidate{name: factory.factoryClassPtr.String(), factory: factory})
-		}
-	}
-	return candidates, nil
+	return candidates
 }
 
-func selectCandidate(ifaceType reflect.Type, candidates []*candidate, inject *injection) (*candidate, error) {
+func selectCandidate(ifaceType reflect.Type, candidates []*beanlist, inject *injection) (*beanlist, error) {
 	if inject.injectionDef.specificBean != "" {
 		name := inject.injectionDef.specificBean
 		for _, candidate := range candidates {
-			if candidate.name == name {
+			if candidate.hasName(name) {
 				return candidate, nil
 			}
 		}
@@ -617,11 +581,11 @@ func selectCandidate(ifaceType reflect.Type, candidates []*candidate, inject *in
 	}
 }
 
-func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*bean) (*bean, error) {
-	var candidates []*bean
-	for _, bean := range core {
-		if bean.beanDef.implements(ifaceType) {
-			candidates = append(candidates, bean)
+func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*beanlist) (*beanlist, error) {
+	var candidates []*beanlist
+	for _, list := range core {
+		if list.head.beanDef.implements(ifaceType) {
+			candidates = append(candidates, list)
 		}
 	}
 	switch len(candidates) {
@@ -631,22 +595,5 @@ func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*bean) (*be
 		return candidates[0], nil
 	default:
 		return nil, errors.Errorf("found two or more implementation of interface '%v', candidates=%v", ifaceType, candidates)
-	}
-}
-
-func searchFactoryByInterface(ifaceType reflect.Type, factories map[reflect.Type]*factory) (*factory, error) {
-	var candidates []*factory
-	for objTyp, factory := range factories {
-		if objTyp.Implements(ifaceType) {
-			candidates = append(candidates, factory)
-		}
-	}
-	switch len(candidates) {
-	case 0:
-		return nil, errNotFoundInterface
-	case 1:
-		return candidates[0], nil
-	default:
-		return nil, errors.Errorf("found two or more factory beans produce interface '%v', candidates=%v", ifaceType, candidates)
 	}
 }
