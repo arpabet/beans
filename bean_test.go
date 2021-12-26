@@ -170,7 +170,7 @@ func TestSpecificBeanByInterface(t *testing.T) {
 	require.NoError(t, err)
 
 	firstService := ctx.Bean(FirstServiceClass)
-	require.Equal(t, 1, len(firstService))
+	require.Equal(t, 2, len(firstService))
 
 	firstService[0].(FirstService).First()
 

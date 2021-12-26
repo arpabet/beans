@@ -162,7 +162,7 @@ func (t *injection) inject(list *beanlist) error {
 	return nil
 }
 
-func (t *injectionDef) inject(value *reflect.Value, list *beanlist) error {
+func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
 	field := value.Field(t.fieldNum)
 
 	if !field.CanSet() {
@@ -171,35 +171,42 @@ func (t *injectionDef) inject(value *reflect.Value, list *beanlist) error {
 
 	if t.slice {
 		newSlice := field
-		list.forEach(func(instance *bean) {
-			if instance.beenFactory != nil {
+		for _, bean := range list {
+			if !bean.valuePtr.IsValid() {
 				newSlice = reflect.Append(newSlice, reflect.Zero(t.fieldType))
 			} else {
-				newSlice = reflect.Append(newSlice, instance.valuePtr)
+				newSlice = reflect.Append(newSlice, bean.valuePtr)
 			}
-		})
+		}
 		field.Set(newSlice)
 		return nil
 	}
 
-	if !list.single() {
-		return errors.Errorf("can not inject to field '%s' in class '%v' non single bean '%+v'", t.fieldName, t.class, list)
-	}
-	impl := list.head
+	switch len(list) {
 
-	if t.lazy {
-		fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
-			if impl.lifecycle != BeanInitialized {
-				return []reflect.Value{reflect.Zero(t.fieldType)}
-			} else {
-				return []reflect.Value{impl.valuePtr}
-			}
-		})
-		field.Set(fn)
-	} else {
-		field.Set(impl.valuePtr)
+	case 0:
+		return errors.Errorf("can not find candidates to inject the field '%s' in class '%v'", t.fieldName, t.class)
+
+	case 1:
+		impl := list[0]
+		if t.lazy {
+			fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
+				if impl.lifecycle != BeanInitialized {
+					return []reflect.Value{reflect.Zero(t.fieldType)}
+				} else {
+					return []reflect.Value{impl.valuePtr}
+				}
+			})
+			field.Set(fn)
+		} else {
+			field.Set(impl.valuePtr)
+		}
+		return nil
+
+	default:
+		return errors.Errorf("can not inject to field '%s' in class '%v' non single bean '%+v'", t.fieldName, t.class, list)
+
 	}
-	return nil
 
 }
 

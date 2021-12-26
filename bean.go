@@ -53,6 +53,23 @@ const (
 	BeanDestroyed
 )
 
+func StringifyLifecycle(n int32) string {
+	switch n {
+	case BeanAllocated:
+		return "BeanAllocated"
+	case BeanCreated:
+		return "BeanCreated"
+	case BeanConstructing:
+		return "BeanConstructing"
+	case BeanInitialized:
+		return "BeanInitialized"
+	case BeanDestroyed:
+		return "BeanDestroyed"
+	default:
+		return "BeanUnknown"
+	}
+}
+
 type bean struct {
 	/**
 	Name of the bean
@@ -357,6 +374,7 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 			anonymousFields: anonymousFields,
 			fields:          fields,
 		},
+		lifecycle: BeanCreated,
 	}, nil
 }
 

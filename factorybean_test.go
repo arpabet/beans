@@ -100,6 +100,26 @@ func (t *repeatedFactoryBeanExample) Singleton() bool {
 	return true
 }
 
+func TestSingleFactoryBean(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&someService{testing: t},
+		&factoryBeanExample{testing: t},
+	)
+	require.NoError(t, err)
+
+	defer ctx.Close()
+
+	b := ctx.Bean(beanConstructedClass)
+	require.Equal(t, 1, len(b))
+
+	require.NotNil(t, b[0])
+
+	b[0].(*beanConstructed).Run()
+}
+
 func TestRepeatedFactoryBean(t *testing.T) {
 
 	beans.Verbose = true

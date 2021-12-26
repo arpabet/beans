@@ -26,10 +26,10 @@ import (
 type registry struct {
 	sync.RWMutex
 	beansByName map[string][]*bean
-	beansByType map[reflect.Type]*beanlist
+	beansByType map[reflect.Type][]*bean
 }
 
-func (t *registry) findByType(ifaceType reflect.Type) (*beanlist, bool) {
+func (t *registry) findByType(ifaceType reflect.Type) ([]*bean, bool) {
 	t.RLock()
 	defer t.RUnlock()
 	list, ok := t.beansByType[ifaceType]
@@ -49,10 +49,16 @@ func (t *registry) findByName(iface string) []interface{} {
 func (t *registry) addBeanList(ifaceType reflect.Type, list *beanlist) {
 	t.Lock()
 	defer t.Unlock()
-	t.beansByType[ifaceType] = list
 	list.forEach(func(b *bean) {
+		t.beansByType[ifaceType] = append(t.beansByType[ifaceType], b)
 		t.beansByName[b.name] = append(t.beansByName[b.name], b)
 	})
+}
+
+func (t *registry) addBeanByType(ifaceType reflect.Type, b *bean) {
+	t.Lock()
+	defer t.Unlock()
+	t.beansByType[ifaceType] = append(t.beansByType[ifaceType], b)
 }
 
 func (t *registry) addBeanByName(b *bean) {
