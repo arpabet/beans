@@ -108,8 +108,8 @@ func TestBeanByInterface(t *testing.T) {
 		&secondServiceImpl{testing: t},
 
 		&struct {
-			FirstService  `inject`
-			SecondService `inject`
+			FirstService  FirstService  `inject`
+			SecondService SecondService `inject`
 		}{},
 	)
 
@@ -144,7 +144,7 @@ func TestMultipleBeansByInterface(t *testing.T) {
 		&firstService2Impl{testing: t},
 
 		&struct {
-			FirstService `inject:"-"`
+			FirstService FirstService `inject:"-"`
 		}{},
 	)
 
@@ -163,7 +163,7 @@ func TestSpecificBeanByInterface(t *testing.T) {
 		&firstService2Impl{testing: t},
 
 		&struct {
-			FirstService `inject:"bean=*beans_test.firstServiceImpl"`
+			FirstService FirstService `inject:"bean=*beans_test.firstServiceImpl"`
 		}{},
 	)
 
@@ -185,7 +185,7 @@ func TestNotFoundSpecificBeanByInterface(t *testing.T) {
 		&firstService2Impl{testing: t},
 
 		&struct {
-			FirstService `inject:"bean=*beans_test.unknownBean"`
+			FirstService FirstService `inject:"bean=*beans_test.unknownBean"`
 		}{},
 	)
 

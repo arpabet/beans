@@ -29,6 +29,7 @@ import (
 )
 
 var Verbose bool
+var Recover bool
 
 type context struct {
 
@@ -95,11 +96,13 @@ func Create(scan ...interface{}) (Context, error) {
 
 		classPtr := reflect.TypeOf(obj)
 
-		defer func() {
-			if r := recover(); r != nil {
-				fmt.Printf("Recover from object '%s' scan error %v\n", classPtr.String(), r)
-			}
-		}()
+		if Recover {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Recover from object '%s' scan error %v\n", classPtr.String(), r)
+				}
+			}()
+		}
 
 		var elemClassPtr reflect.Type
 		factoryBean, isFactoryBean := obj.(FactoryBean)

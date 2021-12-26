@@ -115,8 +115,8 @@ func TestPostConstruct(t *testing.T) {
 		  enum all interfaces in context, to make sure that all of them are initialized
 		*/
 		&struct {
-			ClientService `inject`
-			ServerService `inject`
+			ClientService ClientService `inject`
+			ServerService ServerService `inject`
 		}{},
 	)
 	require.NoError(t, err)
@@ -141,15 +141,15 @@ func TestPostConstructWithError(t *testing.T) {
 		  enum all interfaces in context, to make sure that all of them are initialized
 		*/
 		&struct {
-			ClientService `inject`
-			ServerService `inject`
+			ClientService ClientService `inject`
+			ServerService ServerService `inject`
 		}{},
 	)
 
 	require.NotNil(t, err)
 	require.Nil(t, ctx)
-	require.True(t, strings.Contains(err.Error(), "server construct error"))
 	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "server construct error"))
 
 }
 

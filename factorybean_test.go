@@ -213,7 +213,7 @@ func TestFactoryInterfaceBean(t *testing.T) {
 		&factoryBeanImpl{testing: t},
 		&someServiceImpl{testing: t},
 		&struct {
-			BeanConstructed `inject`
+			BeanConstructed BeanConstructed `inject`
 		}{},
 	)
 	require.NoError(t, err)

@@ -15,23 +15,23 @@ Example:
 ```
 
 type storageService struct {
-    logger *zap.Logger  `inject`
+    Logger *zap.Logger  `inject`
 }
 
 type userService struct {
-	app.Storage  `inject`
-    logger *zap.Logger  `inject`
+	Storage app.Storage  `inject`
+    Logger *zap.Logger  `inject`
 }
 
 type configService struct {
-	app.Storage  `inject`
-    logger *zap.Logger  `inject`
+	Storage app.Storage  `inject`
+    Logger *zap.Logger  `inject`
 }
 
 type appService struct {
     beans.InitializingBean
 	beans.DisposableBean
-	beans.Context  `inject`
+	Context beans.Context  `inject`
 }
 
 // context.InitializingBean

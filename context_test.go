@@ -106,7 +106,7 @@ func (t *storageImpl) Store(key, value string) {
 }
 
 type configServiceImpl struct {
-	Storage `inject`
+	Storage Storage `inject`
 }
 
 func (t *configServiceImpl) BeanName() string {
@@ -114,30 +114,30 @@ func (t *configServiceImpl) BeanName() string {
 }
 
 func (t *configServiceImpl) GetConfig(key string) string {
-	return t.Load("config:" + key)
+	return t.Storage.Load("config:" + key)
 }
 
 func (t *configServiceImpl) SetConfig(key, value string) {
-	t.Store("config:"+key, value)
+	t.Storage.Store("config:"+key, value)
 }
 
 type userServiceImpl struct {
-	Storage       `inject`
-	ConfigService `inject`
+	Storage       Storage       `inject`
+	ConfigService ConfigService `inject`
 }
 
 func (t *userServiceImpl) GetUser(user string) string {
-	return t.Load("user:" + user)
+	return t.Storage.Load("user:" + user)
 }
 
 func (t *userServiceImpl) SaveUser(user, details string) {
 	if t.allowWrites() {
-		t.Store("user:"+user, details)
+		t.Storage.Store("user:"+user, details)
 	}
 }
 
 func (t *userServiceImpl) allowWrites() bool {
-	b, err := strconv.ParseBool(t.GetConfig("allowWrites"))
+	b, err := strconv.ParseBool(t.ConfigService.GetConfig("allowWrites"))
 	if err != nil {
 		return false
 	}
@@ -145,12 +145,12 @@ func (t *userServiceImpl) allowWrites() bool {
 }
 
 func (t *userServiceImpl) PostConstruct() error {
-	t.SetConfig("allowWrites", "true")
+	t.ConfigService.SetConfig("allowWrites", "true")
 	return nil
 }
 
 type appServiceImpl struct {
-	beans.Context `inject`
+	Context beans.Context `inject`
 }
 
 func (t *appServiceImpl) GetContext() beans.Context {
@@ -165,12 +165,13 @@ func TestCreateEmptyObject(t *testing.T) {
 		  needed to define usage of interfaces
 		*/
 		&struct {
-			Storage `inject`
+			Storage Storage `inject`
 		}{},
 	)
 
 	require.NotNil(t, err)
 	require.Nil(t, ctx)
+	println(err.Error())
 	require.True(t, strings.Contains(err.Error(), "*log.Logger"))
 }
 
@@ -212,8 +213,8 @@ func TestCreate(t *testing.T) {
 		  needed to define usage of UserService in context in order to register bean name with this interface name
 		*/
 		&struct {
-			UserService `inject`
-			AppService  `inject`
+			UserService UserService `inject`
+			AppService  AppService  `inject`
 		}{},
 	)
 
@@ -253,8 +254,8 @@ func TestCreate(t *testing.T) {
 }
 
 type requestScope struct {
-	requestParams string   // scope `runtime`
-	UserService   `inject` // with `inject` tag it guarantees non-null instance
+	requestParams string      // scope `runtime`
+	UserService   UserService `inject` // with `inject` tag it guarantees non-null instance
 }
 
 func (t *requestScope) routeAddUser(user string) {
@@ -272,7 +273,7 @@ func TestRequest(t *testing.T) {
 		&configServiceImpl{},
 		&userServiceImpl{},
 		&struct {
-			UserService `inject`
+			UserService UserService `inject`
 		}{}, // could be used by runtime injects
 	)
 	require.Nil(t, err)
@@ -297,7 +298,7 @@ func TestMissingPointer(t *testing.T) {
 		&configServiceImpl{},
 		&userServiceImpl{},
 		&struct {
-			UserService `inject`
+			UserService UserService `inject`
 		}{}, // could be used by runtime injects
 	)
 	require.NotNil(t, err)
@@ -359,7 +360,7 @@ func TestRequestMultithreading(t *testing.T) {
 		&configServiceImpl{},
 		&userServiceImpl{},
 		&struct {
-			UserService `inject`
+			UserService UserService `inject`
 		}{}, // could be used by runtime injects
 	)
 	require.Nil(t, err)

@@ -32,12 +32,12 @@ type beanDef struct {
 	classPtr reflect.Type
 
 	/**
-	Anonymous fields expose their interfaces though bean itself.
+	Anonymous fields expose their interfaces though the bean itself.
 	This is confusing on injection, because this bean is an encapsulator, not an implementation.
 
 	Skip those fields.
 	*/
-	notImplements []reflect.Type
+	anonymousFields []reflect.Type
 
 	/**
 	Fields that are going to be injected
@@ -112,10 +112,8 @@ func (t *bean) String() string {
 Check if bean definition can implement interface type
 */
 func (t *beanDef) implements(ifaceType reflect.Type) bool {
-	for _, ni := range t.notImplements {
-		if ni == ifaceType {
-			return false
-		}
+	if isSomeoneImplements(ifaceType, t.anonymousFields) {
+		return false
 	}
 	return t.classPtr.Implements(ifaceType)
 }
@@ -269,21 +267,37 @@ type factoryDependency struct {
 Investigate bean by using reflection
 */
 func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
-	name := classPtr.String()
-	if namedBean, ok := obj.(NamedBean); ok {
-		name = namedBean.BeanName()
-	}
 	var fields []*injectionDef
-	var notImplements []reflect.Type
+	var anonymousFields []reflect.Type
 	valuePtr := reflect.ValueOf(obj)
+	value := valuePtr.Elem()
 	class := classPtr.Elem()
 	for j := 0; j < class.NumField(); j++ {
 		field := class.Field(j)
 		if field.Anonymous {
-			notImplements = append(notImplements, field.Type)
+			anonymousFields = append(anonymousFields, field.Type)
+			switch field.Type {
+			case NamedBeanClass:
+				stub := &namedBeanStub{name: classPtr.String()}
+				stubValuePtr := reflect.ValueOf(stub)
+				value.Field(j).Set(stubValuePtr)
+			case InitializingBeanClass:
+				stub := &initializingBeanStub{name: classPtr.String()}
+				stubValuePtr := reflect.ValueOf(stub)
+				value.Field(j).Set(stubValuePtr)
+			case DisposableBeanClass:
+				stub := &disposableBeanStub{name: classPtr.String()}
+				stubValuePtr := reflect.ValueOf(stub)
+				value.Field(j).Set(stubValuePtr)
+			case ContextClass:
+				return nil, errors.Errorf("exposing by anonymous field '%s' in '%v' interface beans.Context is not allowed", field.Name, classPtr)
+			}
 		}
 		injectTag, hasInjectTag := field.Tag.Lookup("inject")
 		if field.Tag == "inject" || hasInjectTag {
+			if field.Anonymous {
+				return nil, errors.Errorf("injection to anonymous field '%s' in '%v' is not allowed", field.Name, classPtr)
+			}
 			var specificBean string
 			var optionalBean bool
 			if hasInjectTag {
@@ -305,7 +319,6 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 			fieldType := field.Type
 			var fieldLazy, fieldSlice bool
 			if kind == reflect.Slice {
-				fmt.Printf("field.Name = %s, field.Kind = %v, key=%v\n", field.Name, field.Type.Kind(), field.Type.Elem())
 				fieldSlice = true
 				fieldType = field.Type.Elem()
 				kind = fieldType.Kind()
@@ -331,14 +344,27 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 			fields = append(fields, injectDef)
 		}
 	}
+	name := classPtr.String()
+	if namedBean, ok := obj.(NamedBean); ok {
+		name = namedBean.BeanName()
+	}
 	return &bean{
 		name:     name,
 		obj:      obj,
 		valuePtr: valuePtr,
 		beanDef: &beanDef{
-			classPtr:      classPtr,
-			notImplements: notImplements,
-			fields:        fields,
+			classPtr:        classPtr,
+			anonymousFields: anonymousFields,
+			fields:          fields,
 		},
 	}, nil
+}
+
+func isSomeoneImplements(iface reflect.Type, list []reflect.Type) bool {
+	for _, el := range list {
+		if el.Implements(iface) {
+			return true
+		}
+	}
+	return false
 }

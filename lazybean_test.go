@@ -81,8 +81,8 @@ func TestLazyBeanInterface(t *testing.T) {
 		&dosServiceImpl{testing: t},
 
 		&struct {
-			UnoService `inject`
-			DosService `inject`
+			UnoService UnoService `inject`
+			DosService DosService `inject`
 		}{},
 	)
 

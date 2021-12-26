@@ -92,6 +92,8 @@ ObjectType can be pointer to structure or interface.
 All objects for now created are singletons, that means single instance with ObjectType in context.
 */
 
+var FactoryBeanClass = reflect.TypeOf((*FactoryBean)(nil)).Elem()
+
 type FactoryBean interface {
 
 	/**
@@ -114,6 +116,8 @@ type FactoryBean interface {
 Initializing bean context is using to run required method on post-construct injection stage
 */
 
+var InitializingBeanClass = reflect.TypeOf((*InitializingBean)(nil)).Elem()
+
 type InitializingBean interface {
 
 	/**
@@ -126,6 +130,8 @@ type InitializingBean interface {
 /**
 This interface uses to select objects that could free resources after closing context
 */
+var DisposableBeanClass = reflect.TypeOf((*DisposableBean)(nil)).Elem()
+
 type DisposableBean interface {
 
 	/**
@@ -138,6 +144,8 @@ type DisposableBean interface {
 /**
 This interface used to collect all beans with similar type in map, where the name is the key
 */
+var NamedBeanClass = reflect.TypeOf((*NamedBean)(nil)).Elem()
+
 type NamedBean interface {
 
 	/**

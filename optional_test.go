@@ -76,7 +76,7 @@ func TestOptionalBeanByInterface(t *testing.T) {
 	ctx, err := beans.Create(
 		&beanBServiceImpl{testing: t},
 		&struct {
-			BeanBService `inject`
+			BeanBService BeanBService `inject`
 		}{},
 	)
 	require.NoError(t, err)
