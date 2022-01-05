@@ -347,18 +347,8 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				fieldType = field.Type.Elem()
 				kind = fieldType.Kind()
 			}
-			if fieldLazy {
-				if kind == reflect.Func && field.Type.NumIn() == 0 && field.Type.NumOut() == 1 {
-					fieldType = field.Type.Out(0)
-					kind = fieldType.Kind()
-				} else {
-					return nil, errors.Errorf("lazy field must be function with one return argument of injecting bean, invalid field type '%v' on position %d in %v", field.Type, j, classPtr)
-				}
-				if kind != reflect.Ptr && kind != reflect.Interface {
-					return nil, errors.Errorf("not a pointer or interface field type '%v' on position %d in %v", field.Type, j, classPtr)
-				}
-			} else if kind != reflect.Ptr && kind != reflect.Interface && kind != reflect.Func {
-				return nil, errors.Errorf("not a pointer, interface or function field type '%v' on position %d in %v", field.Type, j, classPtr)
+			if kind != reflect.Ptr && kind != reflect.Interface && kind != reflect.Func {
+				return nil, errors.Errorf("not a pointer, interface or function field type '%v' on position %d in %v with 'inject' tag", field.Type, j, classPtr)
 			}
 			injectDef := &injectionDef{
 				class:        class,

@@ -141,18 +141,7 @@ func (t *injection) inject(list *beanlist) error {
 		return nil
 	}
 
-	if t.injectionDef.lazy {
-		fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
-			if impl.lifecycle != BeanInitialized {
-				return []reflect.Value{reflect.Zero(t.injectionDef.fieldType)}
-			} else {
-				return []reflect.Value{impl.valuePtr}
-			}
-		})
-		field.Set(fn)
-	} else {
-		field.Set(impl.valuePtr)
-	}
+	field.Set(impl.valuePtr)
 
 	// register dependency that 'inject.bean' is using if it is not lazy
 	if !t.injectionDef.lazy {
