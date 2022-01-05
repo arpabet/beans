@@ -146,61 +146,82 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 			}
 		}
 
-		if classPtr.Kind() != reflect.Ptr {
-			return errors.Errorf("non-pointer instance is not allowed on position '%s' of type '%v'", pos, classPtr)
-		}
-
-		/**
-		Create bean from object
-		*/
-		objBean, err := investigate(obj, classPtr)
-		if err != nil {
-			return err
-		}
-		if len(objBean.beanDef.fields) > 0 {
-			value := objBean.valuePtr.Elem()
-			for _, injectDef := range objBean.beanDef.fields {
-				if Verbose {
-					fmt.Printf("	Field %v\n", injectDef.fieldType)
-				}
-				switch injectDef.fieldType.Kind() {
-				case reflect.Ptr:
-					pointers[injectDef.fieldType] = append(pointers[injectDef.fieldType], &injection{objBean, value, injectDef})
-				case reflect.Interface:
-					interfaces[injectDef.fieldType] = append(interfaces[injectDef.fieldType], &injection{objBean, value, injectDef})
-				default:
-					return errors.Errorf("injecting not a pointer or interface on field type '%v' at position '%s' in %v", injectDef.fieldType, pos, classPtr)
+		switch classPtr.Kind() {
+		case reflect.Ptr:
+			/**
+			Create bean from object
+			*/
+			objBean, err := investigate(obj, classPtr)
+			if err != nil {
+				return err
+			}
+			if len(objBean.beanDef.fields) > 0 {
+				value := objBean.valuePtr.Elem()
+				for _, injectDef := range objBean.beanDef.fields {
+					if Verbose {
+						var lazy string
+						if injectDef.lazy {
+							lazy = "lazy"
+						}
+						fmt.Printf("	Field %v %s\n", injectDef.fieldType, lazy)
+					}
+					switch injectDef.fieldType.Kind() {
+					case reflect.Ptr:
+						pointers[injectDef.fieldType] = append(pointers[injectDef.fieldType], &injection{objBean, value, injectDef})
+					case reflect.Interface:
+						interfaces[injectDef.fieldType] = append(interfaces[injectDef.fieldType], &injection{objBean, value, injectDef})
+					case reflect.Func:
+						pointers[injectDef.fieldType] = append(pointers[injectDef.fieldType], &injection{objBean, value, injectDef})
+					default:
+						return errors.Errorf("injecting not a pointer or interface on field type '%v' at position '%s' in %v", injectDef.fieldType, pos, classPtr)
+					}
 				}
 			}
-		}
 
-		/*
-			Register factory if needed
-		*/
-		if isFactoryBean {
-			f := &factory{
-				bean:            objBean,
-				factoryObj:      obj,
-				factoryClassPtr: classPtr,
-				factoryBean:     factoryBean,
+			/*
+				Register factory if needed
+			*/
+			if isFactoryBean {
+				f := &factory{
+					bean:            objBean,
+					factoryObj:      obj,
+					factoryClassPtr: classPtr,
+					factoryBean:     factoryBean,
+				}
+				elemBean := &bean{
+					name:        elemClassPtr.String(),
+					beenFactory: f,
+					beanDef: &beanDef{
+						classPtr: elemClassPtr,
+					},
+					lifecycle: BeanAllocated,
+				}
+				f.instances = oneBean(elemBean)
+				// we can have singleton or multiple beans in context produced by this factory, let's allocate reference for injections even if those beans are still not exist
+				registerBean(core, elemClassPtr, elemBean)
 			}
-			elemBean := &bean{
-				name:        elemClassPtr.String(),
-				beenFactory: f,
+
+			/*
+				Register bean itself
+			*/
+			registerBean(core, classPtr, objBean)
+		case reflect.Func:
+			/*
+				Register function in context
+			*/
+			registerBean(core, classPtr, &bean{
+				name:     classPtr.String(),
+				obj:      obj,
+				valuePtr: reflect.ValueOf(obj),
 				beanDef: &beanDef{
-					classPtr: elemClassPtr,
+					classPtr: classPtr,
 				},
-				lifecycle: BeanAllocated,
-			}
-			f.instances = oneBean(elemBean)
-			// we can have singleton or multiple beans in context produced by this factory, let's allocate reference for injections even if those beans are still not exist
-			registerBean(core, elemClassPtr, elemBean)
+				lifecycle: BeanCreated,
+			})
+		default:
+			return errors.Errorf("instance could be a pointer or function, but was '%s' on position '%s' of type '%v'", classPtr.Kind().String(), pos, classPtr)
 		}
 
-		/*
-			Register bean itself
-		*/
-		registerBean(core, classPtr, objBean)
 		return nil
 	})
 

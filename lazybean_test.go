@@ -40,7 +40,7 @@ type DosService interface {
 }
 
 type unoServiceImpl struct {
-	DosService func() DosService `inject`
+	DosService func() DosService `inject:"lazy"`
 	testing    *testing.T
 }
 
@@ -104,7 +104,7 @@ var ZeroServiceClass = reflect.TypeOf((*zeroService)(nil))
 
 type zeroService struct {
 	beans.InitializingBean
-	UnService func() *unService `inject`
+	UnService func() *unService `inject:"lazy"`
 	testing   *testing.T
 }
 

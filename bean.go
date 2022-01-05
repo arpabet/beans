@@ -306,6 +306,10 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				stub := &disposableBeanStub{name: classPtr.String()}
 				stubValuePtr := reflect.ValueOf(stub)
 				value.Field(j).Set(stubValuePtr)
+			case FactoryBeanClass:
+				stub := &factoryBeanStub{name: classPtr.String(), elemType: classPtr}
+				stubValuePtr := reflect.ValueOf(stub)
+				value.Field(j).Set(stubValuePtr)
 			case ContextClass:
 				return nil, errors.Errorf("exposing by anonymous field '%s' in '%v' interface beans.Context is not allowed", field.Name, classPtr)
 			}
@@ -316,7 +320,8 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				return nil, errors.Errorf("injection to anonymous field '%s' in '%v' is not allowed", field.Name, classPtr)
 			}
 			var specificBean string
-			var optionalBean bool
+			var fieldOptional bool
+			var fieldLazy bool
 			if hasInjectTag {
 				pairs := strings.Split(injectTag, ",")
 				for _, pair := range pairs {
@@ -328,25 +333,32 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 							specificBean = strings.TrimSpace(kv[1])
 						}
 					case "optional":
-						optionalBean = true
+						fieldOptional = true
+					case "lazy":
+						fieldLazy = true
 					}
 				}
 			}
 			kind := field.Type.Kind()
 			fieldType := field.Type
-			var fieldLazy, fieldSlice bool
+			var fieldSlice bool
 			if kind == reflect.Slice {
 				fieldSlice = true
 				fieldType = field.Type.Elem()
 				kind = fieldType.Kind()
 			}
-			if kind == reflect.Func && field.Type.NumIn() == 0 && field.Type.NumOut() == 1 {
-				fieldType = field.Type.Out(0)
-				fieldLazy = true
-				kind = fieldType.Kind()
-			}
-			if kind != reflect.Ptr && kind != reflect.Interface {
-				return nil, errors.Errorf("not a pointer or interface field type '%v' on position %d in %v", field.Type, j, classPtr)
+			if fieldLazy {
+				if kind == reflect.Func && field.Type.NumIn() == 0 && field.Type.NumOut() == 1 {
+					fieldType = field.Type.Out(0)
+					kind = fieldType.Kind()
+				} else {
+					return nil, errors.Errorf("lazy field must be function with one return argument of injecting bean, invalid field type '%v' on position %d in %v", field.Type, j, classPtr)
+				}
+				if kind != reflect.Ptr && kind != reflect.Interface {
+					return nil, errors.Errorf("not a pointer or interface field type '%v' on position %d in %v", field.Type, j, classPtr)
+				}
+			} else if kind != reflect.Ptr && kind != reflect.Interface && kind != reflect.Func {
+				return nil, errors.Errorf("not a pointer, interface or function field type '%v' on position %d in %v", field.Type, j, classPtr)
 			}
 			injectDef := &injectionDef{
 				class:        class,
@@ -355,7 +367,7 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				fieldType:    fieldType,
 				lazy:         fieldLazy,
 				slice:        fieldSlice,
-				optional:     optionalBean,
+				optional:     fieldOptional,
 				specificBean: specificBean,
 			}
 			fields = append(fields, injectDef)
