@@ -81,10 +81,7 @@ type injection struct {
 Inject value in to the field by using reflection
 Returns beanlist of used beans in this injection
 */
-func (t *injection) inject(list *beanlist) error {
-	if list.head == nil {
-		return errors.Errorf("field '%s' in class '%v' can not be injected with nil bean", t.injectionDef.fieldName, t.injectionDef.class)
-	}
+func (t *injection) inject(list []*bean) error {
 
 	field := t.value.Field(t.injectionDef.fieldNum)
 	if !field.CanSet() {
@@ -93,17 +90,17 @@ func (t *injection) inject(list *beanlist) error {
 
 	if t.injectionDef.slice {
 		newSlice := field
-		var factorylist []*bean
-		list.forEach(func(instance *bean) {
+		var factoryList []*bean
+		for _, instance := range list {
 			if instance.beenFactory != nil {
-				factorylist = append(factorylist, instance)
+				factoryList = append(factoryList, instance)
 			} else {
 				newSlice = reflect.Append(newSlice, instance.valuePtr)
 			}
-		})
+		}
 		field.Set(newSlice)
 
-		for _, instance := range factorylist {
+		for _, instance := range factoryList {
 			// register factory dependency for 'inject.bean' that is using 'factory'
 			t.bean.factoryDependencies = append(t.bean.factoryDependencies,
 				&factoryDependency{
@@ -118,7 +115,7 @@ func (t *injection) inject(list *beanlist) error {
 		return nil
 	}
 
-	impl, err := t.injectionDef.selectBean(list)
+	impl, err := t.injectionDef.selectOneBean(list)
 	if err != nil {
 		return err
 	}
@@ -199,26 +196,24 @@ func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
 
 }
 
-func (t *injectionDef) selectBean(list *beanlist) (*bean, error) {
-	if list.single() {
-		return list.head, nil
-	}
-	if t.specificBean == "" {
-		return nil, errors.Errorf("field '%s' in class '%v' can not be injected with multiple candidates %+v", t.fieldName, t.class, list.list())
-	}
+func (t *injectionDef) selectOneBean(list []*bean) (*bean, error) {
 	var candidates []*bean
-	list.forEach(func(b *bean) {
-		if t.specificBean == b.name {
-			candidates = append(candidates, b)
+	if t.specificBean != "" {
+		for _, b := range list {
+			if t.specificBean == b.name {
+				candidates = append(candidates, b)
+			}
 		}
-	})
+	} else {
+		candidates = list
+	}
 	switch len(candidates) {
 	case 0:
-		return nil, errors.Errorf("field '%s' in class '%v' with specific bean '%s' can not find candidates", t.fieldName, t.class, t.specificBean)
+		return nil, errors.Errorf("field '%s' in class '%v' can not find candidates", t.fieldName, t.class)
 	case 1:
 		return candidates[0], nil
 	default:
-		return nil, errors.Errorf("field '%s' in class '%v' with specific bean '%s' can not be injected with multiple candidates %+v", t.fieldName, t.class, t.specificBean, candidates)
+		return nil, errors.Errorf("field '%s' in class '%v' can not be injected with multiple candidates %+v", t.fieldName, t.class, candidates)
 	}
 }
 

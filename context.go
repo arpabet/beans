@@ -241,7 +241,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 			}
 
 			for _, inject := range injects {
-				if err := inject.inject(direct); err != nil {
+				if err := inject.inject(direct.list()); err != nil {
 					return nil, errors.Errorf("required type '%s' injection error, %v", requiredType, err)
 				}
 			}
@@ -304,7 +304,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 
 		for _, inject := range injects {
 
-			candidate, err := selectCandidate(ifaceType, candidates, inject)
+			candidate, err := selectCandidate(candidates, inject)
 			if err != nil {
 				return nil, err
 			}
@@ -357,11 +357,13 @@ func forEach(initialPos string, scan []interface{}, cb func(i string, obj interf
 			pos = strconv.Itoa(j)
 		}
 		if item == nil {
-			return errors.Errorf("null object is not allowed on position '%s'", pos)
+			continue
 		}
 		switch obj := item.(type) {
 		case []interface{}:
-			return forEach(pos, obj, cb)
+			if err := forEach(pos, obj, cb); err != nil {
+				return err
+			}
 		case interface{}:
 			if err := cb(pos, obj); err != nil {
 				return errors.Errorf("object '%v' error, %v", reflect.ValueOf(item).Type(), err)
@@ -614,25 +616,22 @@ func (t *context) searchCandidates(ifaceType reflect.Type) []*beanlist {
 	return candidates
 }
 
-func selectCandidate(ifaceType reflect.Type, candidates []*beanlist, inject *injection) (*beanlist, error) {
+func selectCandidate(candidates []*beanlist, inject *injection) ([]*bean, error) {
+	var list []*bean
 	if inject.injectionDef.specificBean != "" {
 		name := inject.injectionDef.specificBean
 		for _, candidate := range candidates {
 			if candidate.hasName(name) {
-				return candidate, nil
+				list = append(list, candidate.list()...)
 			}
 		}
-		return nil, errors.Errorf("the specific implementation '%s' of interface '%v' required by injection '%v' is not found from candidates '%v'", name, ifaceType, inject, candidates)
+		return list, nil
 	} else {
-		switch len(candidates) {
-		case 0:
-			return nil, errors.Errorf("can not find implementation for '%v' interface required by injection '%v", ifaceType, inject)
-		case 1:
-			return candidates[0], nil
-		default:
-			return nil, errors.Errorf("found two or more bean lists that implements interface '%v', candidates=%v required by injection '%v'", ifaceType, candidates, inject)
+		for _, candidate := range candidates {
+			list = append(list, candidate.list()...)
 		}
 	}
+	return list, nil
 }
 
 func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*beanlist) (*beanlist, error) {

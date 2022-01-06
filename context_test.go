@@ -33,11 +33,20 @@ import (
 
 func TestCreateNil(t *testing.T) {
 
+	// skip all nil beans
 	ctx, err := beans.Create(nil)
 
-	require.NotNil(t, err)
-	require.Nil(t, ctx)
-	require.True(t, strings.Contains(err.Error(), "null object"))
+	require.Nil(t, err)
+	require.NotNil(t, ctx)
+}
+
+func TestCreateNilArray(t *testing.T) {
+
+	// skip all nil beans
+	ctx, err := beans.Create([]interface{}{nil, nil})
+
+	require.Nil(t, err)
+	require.NotNil(t, ctx)
 }
 
 func TestCreateEmpty(t *testing.T) {
@@ -250,6 +259,26 @@ func TestCreate(t *testing.T) {
 	require.NotNil(t, appServiceInstance)
 	require.Equal(t, ctx, appServiceInstance.GetContext())
 	require.Equal(t, appServiceInstance, ctx.Bean(AppServiceClass)[0])
+
+}
+
+func TestCreateArray(t *testing.T) {
+
+	beans.Verbose = true
+	logger := log.New(os.Stderr, "beans: ", log.LstdFlags)
+
+	var b []interface{}
+	b = append(b, logger, &storageImpl{}, &configServiceImpl{})
+
+	ctx, err := beans.Create(
+		b,
+		&userServiceImpl{},
+		&appServiceImpl{},
+	)
+
+	require.Nil(t, err)
+	require.NotNil(t, ctx)
+	require.Equal(t, 6, len(ctx.Core()))
 
 }
 

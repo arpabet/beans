@@ -150,7 +150,8 @@ func TestMultipleBeansByInterface(t *testing.T) {
 
 	require.Error(t, err)
 	require.Nil(t, ctx)
-	require.True(t, strings.Contains(err.Error(), "two or more"))
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "multiple candidates"))
 
 }
 
@@ -191,6 +192,7 @@ func TestNotFoundSpecificBeanByInterface(t *testing.T) {
 
 	require.Error(t, err)
 	require.Nil(t, ctx)
-	require.True(t, strings.Contains(err.Error(), "specific"))
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "can not find candidates"))
 
 }
