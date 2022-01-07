@@ -119,33 +119,6 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 			}()
 		}
 
-		var elemClassPtr reflect.Type
-		factoryBean, isFactoryBean := obj.(FactoryBean)
-		if isFactoryBean {
-			elemClassPtr = factoryBean.ObjectType()
-		}
-
-		if Verbose {
-			if isFactoryBean {
-				var info string
-				if factoryBean.Singleton() {
-					info = "singleton"
-				} else {
-					info = "non-singleton"
-				}
-				fmt.Printf("FactoryBean %v produce %s %v\n", classPtr, info, elemClassPtr)
-			} else {
-				fmt.Printf("Bean %v\n", classPtr)
-			}
-		}
-
-		if isFactoryBean {
-			elemClassKind := elemClassPtr.Kind()
-			if elemClassKind != reflect.Ptr && elemClassKind != reflect.Interface {
-				return errors.Errorf("factory bean '%v' on position '%s' can produce ptr or interface, but object type is '%v'", classPtr, pos, elemClassPtr)
-			}
-		}
-
 		switch classPtr.Kind() {
 		case reflect.Ptr:
 			/**
@@ -155,6 +128,34 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 			if err != nil {
 				return err
 			}
+
+			var elemClassPtr reflect.Type
+			factoryBean, isFactoryBean := obj.(FactoryBean)
+			if isFactoryBean {
+				elemClassPtr = factoryBean.ObjectType()
+			}
+
+			if Verbose {
+				if isFactoryBean {
+					var info string
+					if factoryBean.Singleton() {
+						info = "singleton"
+					} else {
+						info = "non-singleton"
+					}
+					fmt.Printf("FactoryBean %v produce %s %v\n", classPtr, info, elemClassPtr)
+				} else {
+					fmt.Printf("Bean %v\n", classPtr)
+				}
+			}
+
+			if isFactoryBean {
+				elemClassKind := elemClassPtr.Kind()
+				if elemClassKind != reflect.Ptr && elemClassKind != reflect.Interface {
+					return errors.Errorf("factory bean '%v' on position '%s' can produce ptr or interface, but object type is '%v'", classPtr, pos, elemClassPtr)
+				}
+			}
+
 			if len(objBean.beanDef.fields) > 0 {
 				value := objBean.valuePtr.Elem()
 				for _, injectDef := range objBean.beanDef.fields {
@@ -206,6 +207,11 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 			*/
 			registerBean(core, classPtr, objBean)
 		case reflect.Func:
+
+			if Verbose {
+				fmt.Printf("Function %v\n", classPtr)
+			}
+
 			/*
 				Register function in context
 			*/
