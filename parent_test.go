@@ -71,3 +71,29 @@ func TestParent(t *testing.T) {
 	b[0].(*serviceBean).Run()
 
 }
+
+type parentBean struct {
+	testing *testing.T
+}
+
+func (t *parentBean) Destroy() error {
+	// should never happened since we are not closing this context, only child one
+	require.True(t.testing, false)
+	return nil
+}
+
+func TestParentDestroy(t *testing.T) {
+
+	parent, err := beans.Create(
+		&parentBean{testing: t},
+	)
+
+	require.NoError(t, err)
+
+	child, err := parent.Extend()
+
+	require.NoError(t, err)
+
+	child.Close()
+
+}
