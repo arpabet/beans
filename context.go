@@ -308,18 +308,15 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 			ctx.registry.addBeanList(ifaceType, candidate)
 		}
 
+		list := flattenBeans(candidates)
+
 		for _, inject := range injects {
 
-			candidate, err := selectCandidate(candidates, inject)
-			if err != nil {
-				return nil, err
-			}
-
 			if Verbose {
-				fmt.Printf("Inject '%v' by implementation '%+v' in to %+v\n", ifaceType, candidate, inject)
+				fmt.Printf("Inject '%v' by implementation '%+v' in to %+v\n", ifaceType, list, inject)
 			}
 
-			if err := inject.inject(candidate); err != nil {
+			if err := inject.inject(list); err != nil {
 				return nil, errors.Errorf("interface '%s' injection error, %v", ifaceType, err)
 			}
 
@@ -622,22 +619,12 @@ func (t *context) searchCandidates(ifaceType reflect.Type) []*beanlist {
 	return candidates
 }
 
-func selectCandidate(candidates []*beanlist, inject *injection) ([]*bean, error) {
+func flattenBeans(candidates []*beanlist) []*bean {
 	var list []*bean
-	if inject.injectionDef.specificBean != "" {
-		name := inject.injectionDef.specificBean
-		for _, candidate := range candidates {
-			if candidate.hasName(name) {
-				list = append(list, candidate.list()...)
-			}
-		}
-		return list, nil
-	} else {
-		for _, candidate := range candidates {
-			list = append(list, candidate.list()...)
-		}
+	for _, candidate := range candidates {
+		list = append(list, candidate.list()...)
 	}
-	return list, nil
+	return list
 }
 
 func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*beanlist) (*beanlist, error) {

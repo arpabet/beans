@@ -54,9 +54,9 @@ type injectionDef struct {
 	*/
 	optional bool
 	/*
-		Injection expects specific bean to be injected
+		Injection expects the specific bean to be injected
 	*/
-	specificBean string
+	qualifier string
 }
 
 type injection struct {
@@ -88,7 +88,17 @@ func (t *injection) inject(list []*bean) error {
 		return errors.Errorf("field '%s' in class '%v' is not public", t.injectionDef.fieldName, t.injectionDef.class)
 	}
 
+	list = t.injectionDef.filterBeans(list)
+
+	if len(list) == 0 {
+		if !t.injectionDef.optional {
+			return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v'", t.injectionDef.fieldName, t.injectionDef.class)
+		}
+		return nil
+	}
+
 	if t.injectionDef.slice {
+
 		newSlice := field
 		var factoryList []*bean
 		for _, instance := range list {
@@ -115,10 +125,11 @@ func (t *injection) inject(list []*bean) error {
 		return nil
 	}
 
-	impl, err := t.injectionDef.selectOneBean(list)
-	if err != nil {
-		return err
+	if len(list) > 1 {
+		return errors.Errorf("field '%s' in class '%v' can not be injected with multiple candidates %+v", t.injectionDef.fieldName, t.injectionDef.class, list)
 	}
+
+	impl := list[0]
 
 	if impl.beenFactory != nil {
 		if t.injectionDef.lazy {
@@ -148,6 +159,7 @@ func (t *injection) inject(list []*bean) error {
 	return nil
 }
 
+// runtime injection
 func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
 	field := value.Field(t.fieldNum)
 
@@ -155,7 +167,17 @@ func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
 		return errors.Errorf("field '%s' in class '%v' is not public", t.fieldName, t.class)
 	}
 
+	list = t.filterBeans(list)
+
+	if len(list) == 0 {
+		if !t.optional {
+			return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v'", t.fieldName, t.class)
+		}
+		return nil
+	}
+
 	if t.slice {
+
 		newSlice := field
 		for _, bean := range list {
 			if !bean.valuePtr.IsValid() {
@@ -168,52 +190,42 @@ func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
 		return nil
 	}
 
-	switch len(list) {
-
-	case 0:
-		return errors.Errorf("can not find candidates to inject the field '%s' in class '%v'", t.fieldName, t.class)
-
-	case 1:
-		impl := list[0]
-		if t.lazy {
-			fn := reflect.MakeFunc(field.Type(), func(args []reflect.Value) (results []reflect.Value) {
-				if impl.lifecycle != BeanInitialized {
-					return []reflect.Value{reflect.Zero(t.fieldType)}
-				} else {
-					return []reflect.Value{impl.valuePtr}
-				}
-			})
-			field.Set(fn)
-		} else {
-			field.Set(impl.valuePtr)
-		}
-		return nil
-
-	default:
-		return errors.Errorf("can not inject to field '%s' in class '%v' non single bean '%+v'", t.fieldName, t.class, list)
-
+	if len(list) > 1 {
+		return errors.Errorf("field '%s' in class '%v' can not be injected with multiple candidates %+v", t.fieldName, t.class, list)
 	}
 
+	impl := list[0]
+
+	if impl.lifecycle != BeanInitialized {
+		return errors.Errorf("field '%s' in class '%v' can not be injected with non-initialized bean %+v", t.fieldName, t.class, impl)
+	}
+
+	if impl.beenFactory != nil {
+
+		service, _, err := impl.beenFactory.ctor()
+		if err != nil {
+			return errors.Errorf("field '%s' in class '%v' can not be injected because of factory bean %+v error, %v", t.fieldName, t.class, impl, err)
+		}
+
+		impl = service
+	}
+
+	field.Set(impl.valuePtr)
+
+	return nil
 }
 
-func (t *injectionDef) selectOneBean(list []*bean) (*bean, error) {
-	var candidates []*bean
-	if t.specificBean != "" {
+func (t *injectionDef) filterBeans(list []*bean) []*bean {
+	if t.qualifier != "" {
+		var candidates []*bean
 		for _, b := range list {
-			if t.specificBean == b.name {
+			if t.qualifier == b.name {
 				candidates = append(candidates, b)
 			}
 		}
+		return candidates
 	} else {
-		candidates = list
-	}
-	switch len(candidates) {
-	case 0:
-		return nil, errors.Errorf("field '%s' in class '%v' can not find candidates", t.fieldName, t.class)
-	case 1:
-		return candidates[0], nil
-	default:
-		return nil, errors.Errorf("field '%s' in class '%v' can not be injected with multiple candidates %+v", t.fieldName, t.class, candidates)
+		return list
 	}
 }
 

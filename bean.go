@@ -351,14 +351,14 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				return nil, errors.Errorf("not a pointer, interface or function field type '%v' on position %d in %v with 'inject' tag", field.Type, j, classPtr)
 			}
 			injectDef := &injectionDef{
-				class:        class,
-				fieldNum:     j,
-				fieldName:    field.Name,
-				fieldType:    fieldType,
-				lazy:         fieldLazy,
-				slice:        fieldSlice,
-				optional:     fieldOptional,
-				specificBean: specificBean,
+				class:     class,
+				fieldNum:  j,
+				fieldName: field.Name,
+				fieldType: fieldType,
+				lazy:      fieldLazy,
+				slice:     fieldSlice,
+				optional:  fieldOptional,
+				qualifier: specificBean,
 			}
 			fields = append(fields, injectDef)
 		}

@@ -165,3 +165,30 @@ func TestArrayByInterface(t *testing.T) {
 	require.Equal(t, "c", el[0].(Element).BeanName())
 
 }
+
+type specificHolderImpl struct {
+	Array   []Element `inject:"bean=a"`
+	testing *testing.T
+}
+
+func (t *specificHolderImpl) Elements() []Element {
+	return t.Array
+}
+
+func TestArraySpecificByInterface(t *testing.T) {
+
+	ctx, err := beans.Create(
+		&elementImpl{name: "a"},
+		&elementImpl{name: "a"},
+		&elementImpl{name: "b"},
+		&specificHolderImpl{testing: t},
+	)
+	require.NoError(t, err)
+
+	b := ctx.Bean(HolderClass)
+	require.Equal(t, 1, len(b))
+	holder := b[0].(Holder)
+
+	require.Equal(t, 2, len(holder.Elements()))
+
+}
