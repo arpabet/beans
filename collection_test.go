@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.arpabet.com/beans"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -39,6 +40,17 @@ type holderX struct {
 	Array []*elementX `inject`
 	//Map    map[string]*elementX   `inject`
 	testing *testing.T
+}
+
+func TestArrayRequiredByPointer(t *testing.T) {
+
+	_, err := beans.Create(
+		&holderX{testing: t},
+	)
+	require.NotNil(t, err)
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "can not find candidates"))
+
 }
 
 func TestArrayByPointer(t *testing.T) {
@@ -105,6 +117,17 @@ type holderImpl struct {
 
 func (t *holderImpl) Elements() []Element {
 	return t.Array
+}
+
+func TestArrayRequiredByInterface(t *testing.T) {
+
+	_, err := beans.Create(
+		&holderImpl{testing: t},
+	)
+	require.NotNil(t, err)
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "can not find candidates"))
+
 }
 
 func TestArrayByInterface(t *testing.T) {
