@@ -9,7 +9,8 @@ All injectable fields must have tag `inject` and be public.
 ### Usage
 
 Dependency Injection framework for complex applications written in Golang.
-There is not capability to scan components in packages in Golang, therefore the context creation needs to accept all beans as created instances.
+There is no capability to scan components in packages provided by Golang language, therefore the context creation needs to see all beans as instances.
+The best practices are to inject beans by interfaces, but scan implementations.
 
 Example:
 ```
@@ -228,4 +229,43 @@ if t.Dependency != nil {
     t.Dependency.DoSomething()
 }
 ```
+
+### Extend
+
+Beans Framework has method Extend to create inherited contexts whereas parent sees only own beans, extended context sees parent and own beans.
+
+Example:
+```
+struct a {
+}
+
+parent, err := beans.Create(new(a))
+
+struct b {
+}
+
+child, err := parent.Extend(new(b))
+
+len(parent.Lookup("package_name.a")) == 1
+len(parent.Lookup("package_name.b")) == 0
+
+len(child.Lookup("package_name.a")) == 1
+len(child.Lookup("package_name.b")) == 1
+```
+
+When we destroy child context, parent context would be still alive.
+
+Example:
+```
+child.Close()
+// Extend method does not transfer ownership of beans from parent to child context, you would need to close parent context separatelly
+parent.Close()
+```
+
+### Contributions
+
+If you find a bug or issue, please create a ticket.
+For now no external contributions are permitted.
+
+
 
