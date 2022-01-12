@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -246,8 +247,9 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 				fmt.Printf("Inject '%v' by pointer '%+v' in to %+v\n", requiredType, direct, injects)
 			}
 
+			list := orderBeans(direct.list())
 			for _, inject := range injects {
-				if err := inject.inject(direct.list()); err != nil {
+				if err := inject.inject(list); err != nil {
 					return nil, errors.Errorf("required type '%s' injection error, %v", requiredType, err)
 				}
 			}
@@ -308,8 +310,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 			ctx.registry.addBeanList(ifaceType, candidate)
 		}
 
-		list := flattenBeans(candidates)
-
+		list := orderBeans(flattenBeans(candidates))
 		for _, inject := range injects {
 
 			if Verbose {
@@ -625,6 +626,33 @@ func flattenBeans(candidates []*beanlist) []*bean {
 		list = append(list, candidate.list()...)
 	}
 	return list
+}
+
+func orderBeans(candidates []*bean) []*bean {
+	var ordered []*bean
+	for _, candidate := range candidates {
+		if candidate.ordered {
+			ordered = append(ordered, candidate)
+		}
+	}
+	n := len(ordered)
+	if n > 0 {
+		sort.Slice(ordered, func(i, j int) bool {
+			return ordered[i].order < ordered[j].order
+		})
+		if n != len(candidates) {
+			var unordered []*bean
+			for _, candidate := range candidates {
+				if !candidate.ordered {
+					unordered = append(unordered, candidate)
+				}
+			}
+			return append(ordered, unordered...)
+		}
+		return ordered
+	} else {
+		return candidates
+	}
 }
 
 func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*beanlist) (*beanlist, error) {

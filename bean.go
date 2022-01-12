@@ -77,6 +77,12 @@ type bean struct {
 	name string
 
 	/**
+	Order of the bean
+	*/
+	ordered bool
+	order   int
+
+	/**
 	Factory of the bean if exist
 	*/
 	beenFactory *factory
@@ -359,8 +365,16 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 	if namedBean, ok := obj.(NamedBean); ok {
 		name = namedBean.BeanName()
 	}
+	ordered := false
+	var order int
+	if orderedBean, ok := obj.(OrderedBean); ok {
+		ordered = true
+		order = orderedBean.BeanOrder()
+	}
 	return &bean{
 		name:     name,
+		ordered:  ordered,
+		order:    order,
 		obj:      obj,
 		valuePtr: valuePtr,
 		beanDef: &beanDef{

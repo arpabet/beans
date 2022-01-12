@@ -35,9 +35,29 @@ func (t *elementX) BeanName() string {
 	return t.name
 }
 
+type orderedElementX struct {
+	beans.NamedBean
+	name string
+}
+
+func (t *orderedElementX) BeanName() string {
+	return t.name
+}
+
+func (t *orderedElementX) BeanOrder() int {
+	return int(t.name[0] - 'a')
+}
+
 var holderXClass = reflect.TypeOf((*holderX)(nil)) // *holderX
 type holderX struct {
 	Array []*elementX `inject`
+	//Map    map[string]*elementX   `inject`
+	testing *testing.T
+}
+
+var orderedHolderXClass = reflect.TypeOf((*orderedHolderX)(nil)) // *holderX
+type orderedHolderX struct {
+	Array []*orderedElementX `inject`
 	//Map    map[string]*elementX   `inject`
 	testing *testing.T
 }
@@ -57,6 +77,7 @@ func TestArrayByPointer(t *testing.T) {
 
 	beans.Verbose = true
 
+	// initialization order
 	ctx, err := beans.Create(
 		&elementX{name: "a"},
 		&elementX{name: "b"},
@@ -72,6 +93,7 @@ func TestArrayByPointer(t *testing.T) {
 	require.NotNil(t, holder.Array)
 	require.Equal(t, 3, len(holder.Array))
 
+	// preserve initialization order for non-ordered beans
 	require.Equal(t, "a", holder.Array[0].name)
 	require.Equal(t, "b", holder.Array[1].name)
 	require.Equal(t, "c", holder.Array[2].name)
@@ -87,6 +109,48 @@ func TestArrayByPointer(t *testing.T) {
 	el = ctx.Lookup("c")
 	require.Equal(t, 1, len(el))
 	require.Equal(t, "c", el[0].(*elementX).BeanName())
+
+}
+
+func TestOrderedArrayByPointer(t *testing.T) {
+
+	beans.Verbose = true
+
+	// initialization order
+	ctx, err := beans.Create(
+		&orderedElementX{name: "c"},
+		&orderedElementX{name: "a"},
+		&orderedElementX{name: "b"},
+		&orderedHolderX{testing: t},
+	)
+	require.NoError(t, err)
+
+	b := ctx.Bean(orderedHolderXClass)
+	require.Equal(t, 1, len(b))
+
+	holder := b[0].(*orderedHolderX)
+	require.NotNil(t, holder.Array)
+	require.Equal(t, 3, len(holder.Array))
+
+	// preserve initialization order for non-ordered beans
+	require.Equal(t, "a", holder.Array[0].name)
+	require.Equal(t, "b", holder.Array[1].name)
+	require.Equal(t, "c", holder.Array[2].name)
+
+	el := ctx.Lookup("a")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "a", el[0].(*orderedElementX).BeanName())
+	require.Equal(t, 0, el[0].(*orderedElementX).BeanOrder())
+
+	el = ctx.Lookup("b")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "b", el[0].(*orderedElementX).BeanName())
+	require.Equal(t, 1, el[0].(*orderedElementX).BeanOrder())
+
+	el = ctx.Lookup("c")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "c", el[0].(*orderedElementX).BeanName())
+	require.Equal(t, 2, el[0].(*orderedElementX).BeanOrder())
 
 }
 
@@ -108,6 +172,18 @@ type elementImpl struct {
 
 func (t *elementImpl) BeanName() string {
 	return t.name
+}
+
+type orderedElementImpl struct {
+	name string
+}
+
+func (t *orderedElementImpl) BeanName() string {
+	return t.name
+}
+
+func (t *orderedElementImpl) BeanOrder() int {
+	return int(t.name[0] - 'a')
 }
 
 type holderImpl struct {
@@ -134,6 +210,7 @@ func TestArrayByInterface(t *testing.T) {
 
 	beans.Verbose = true
 
+	// initialization order
 	ctx, err := beans.Create(
 		&elementImpl{name: "a"},
 		&elementImpl{name: "b"},
@@ -148,6 +225,44 @@ func TestArrayByInterface(t *testing.T) {
 
 	require.Equal(t, 3, len(holder.Elements()))
 
+	// preserve initialization order for non-ordered beans
+	require.Equal(t, "a", holder.Elements()[0].BeanName())
+	require.Equal(t, "b", holder.Elements()[1].BeanName())
+	require.Equal(t, "c", holder.Elements()[2].BeanName())
+
+	el := ctx.Lookup("a")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "a", el[0].(Element).BeanName())
+
+	el = ctx.Lookup("b")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "b", el[0].(Element).BeanName())
+
+	el = ctx.Lookup("c")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "c", el[0].(Element).BeanName())
+
+}
+
+func TestOrderedArrayByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&orderedElementImpl{name: "c"},
+		&orderedElementImpl{name: "a"},
+		&orderedElementImpl{name: "b"},
+		&holderImpl{testing: t},
+	)
+	require.NoError(t, err)
+
+	b := ctx.Bean(HolderClass)
+	require.Equal(t, 1, len(b))
+	holder := b[0].(Holder)
+
+	require.Equal(t, 3, len(holder.Elements()))
+
+	// use BeanOrder function to sort elements in array
 	require.Equal(t, "a", holder.Elements()[0].BeanName())
 	require.Equal(t, "b", holder.Elements()[1].BeanName())
 	require.Equal(t, "c", holder.Elements()[2].BeanName())
