@@ -25,6 +25,40 @@ import (
 	"testing"
 )
 
+type functionHolder struct {
+	Int           func() int                `inject`
+	StringArray   func() []string           `inject`
+	SomeMap       func() map[string]string  `inject`
+}
+
+func TestPrimitiveFunctions(t *testing.T) {
+
+	beans.Verbose = true
+
+	holder := &functionHolder{}
+
+	ctx, err := beans.Create(
+		holder,
+		func() int { return 123 },
+		func() []string { return []string{ "a", "b" }},
+		func() map[string]string { return map[string]string {"a": "b"}},
+	)
+	require.NoError(t, err)
+	defer ctx.Close()
+
+	require.Equal(t, 123, holder.Int())
+
+	arr := holder.StringArray()
+	require.Equal(t, 2, len(arr))
+	require.Equal(t, "a", arr[0])
+	require.Equal(t, "b", arr[1])
+
+	m := holder.SomeMap()
+	require.Equal(t, 1, len(m))
+	require.Equal(t, "b", m["a"])
+
+}
+
 type ClientBeans func() []interface{}
 
 var ClientBeansClass = reflect.TypeOf((ClientBeans)(nil))
