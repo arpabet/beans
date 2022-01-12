@@ -27,12 +27,12 @@ require.Nil(t, err)
 defer ctx.Close()
 ```
 
-Beans Framework does not support antonymous injection fields.
+Beans Framework does not support anonymous injection fields.
 
 Wrong:
 ```
 type wrong struct {
-    UserService `inject`  // if UserService interface has method X that also implements by *wrong struct or another antonymous injected field then we can not determine the right method impl or candidate for injection
+    UserService `inject`  // if UserService interface has method X that also implements by *wrong struct or another anonymous injected field then we can not determine the right method impl or candidate for injection
 }
 ```
 
