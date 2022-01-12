@@ -46,11 +46,11 @@ type right struct {
 ### Types
 
 Bean Framework supports following types for beans:
-* Pointer to Struct
+* Pointer to struct
 * Interface
 * Function
 
-Beans Framework does not support Struct type as bean instance type. 
+Bean Framework does not support Struct type as bean instance type. 
 
 ### Function
 
