@@ -1,7 +1,6 @@
 # beans
 
-Dependency Injection Runtime Framework.
-Inspired by Spring Framework in Java.
+Dependency Injection Runtime Framework for Golang inspired by Spring Framework in Java.
 
 All injections happens on runtime and took O(n*m) complexity, where n - number of interfaces, m - number of services.
 In golang we have to check each interface with each instance to know if they are compatible. 
@@ -10,6 +9,22 @@ All injectable fields must have tag `inject` and be public.
 ### Usage
 
 Dependency Injection framework for complex applications written in Golang.
+There is not capability to scan components in packages in Golang, therefore the context creation needs to accept all beans as created instances.
+
+Example:
+```
+var ctx, err = beans.Create(
+    logger,
+    &storageImpl{},
+    &configServiceImpl{},
+    &userServiceImpl{},
+    &struct {
+        UserService UserService `inject`
+    }{}, // could be used by runtime injects
+)
+require.Nil(t, err)
+defer ctx.Close()
+```
 
 ### Types
 
@@ -35,7 +50,29 @@ var ctx, err = beans.Create (
     &holder{},
     func() []string { return []string {"a", "b"} },
 )
+
+ctx.Close()
 ``` 
+ 
+### Collections 
+ 
+Beans Framework supports injection of bean collections like Slice and Map.
+
+Example:
+```
+type holderImpl struct {
+	Array   []Element          `inject`
+	Map     map[string]Element `inject`
+}
+
+var ElementClass = reflect.TypeOf((*Element)(nil)).Elem()
+type Element interface {
+    beans.NamedBean
+    beans.OrderedBean
+}
+```  
+ 
+In this case Element can implement beans.NamedBean interface to override bean name and also implement beans.OrderedBean to assign order for the bean in collection.
  
 ### beans.InitializingBean
 
