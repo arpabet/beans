@@ -32,7 +32,7 @@ Beans Framework does not support antonymous injection fields.
 Wrong:
 ```
 type wrong struct {
-    UserService `inject`  // if UserService interface has method X that also implements by *wrong struct or another antonymous injected field then we can not determine right call 
+    UserService `inject`  // if UserService interface has method X that also implements by *wrong struct or another antonymous injected field then we can not determine the right method impl or candidate for injection
 }
 ```
 
