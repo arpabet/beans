@@ -339,9 +339,17 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 			}
 			kind := field.Type.Kind()
 			fieldType := field.Type
-			var fieldSlice bool
-			if kind == reflect.Slice {
+			var fieldSlice, fieldMap bool
+			switch kind {
+			case reflect.Slice:
 				fieldSlice = true
+				fieldType = field.Type.Elem()
+				kind = fieldType.Kind()
+			case reflect.Map:
+				fieldMap = true
+				if field.Type.Key().Kind() != reflect.String {
+					return nil, errors.Errorf("map must have string key to be injected for field type '%v' on position %d in %v with 'inject' tag", field.Type, j, classPtr)
+				}
 				fieldType = field.Type.Elem()
 				kind = fieldType.Kind()
 			}
@@ -355,6 +363,7 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				fieldType: fieldType,
 				lazy:      fieldLazy,
 				slice:     fieldSlice,
+				table:     fieldMap,
 				optional:  fieldOptional,
 				qualifier: specificBean,
 			}

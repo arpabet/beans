@@ -42,9 +42,13 @@ type injectionDef struct {
 	*/
 	fieldType reflect.Type
 	/**
-	Field is Slice of elements
+	Field is Slice of beans
 	*/
 	slice bool
+	/**
+	Field is Map of beans
+	*/
+	table bool
 	/**
 	Lazy injection represented by function
 	*/
@@ -125,6 +129,38 @@ func (t *injection) inject(list []*bean) error {
 		return nil
 	}
 
+	if t.injectionDef.table {
+
+		field.Set(reflect.MakeMap(field.Type()))
+
+		visited := make(map[string]bool)
+		for _, instance := range list {
+			if instance.beenFactory != nil {
+				// register factory dependency for 'inject.bean' that is using 'factory'
+				t.bean.factoryDependencies = append(t.bean.factoryDependencies,
+					&factoryDependency{
+						factory: instance.beenFactory,
+						injection: func(service *bean) error {
+							if visited[instance.name] {
+								return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class)
+							}
+							visited[instance.name] = true
+							field.SetMapIndex(reflect.ValueOf(instance.name), instance.valuePtr)
+							return nil
+						},
+					})
+			} else {
+				if visited[instance.name] {
+					return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class)
+				}
+				visited[instance.name] = true
+				field.SetMapIndex(reflect.ValueOf(instance.name), instance.valuePtr)
+			}
+		}
+
+		return nil
+	}
+
 	if len(list) > 1 {
 		return errors.Errorf("field '%s' in class '%v' can not be injected with multiple candidates %+v", t.injectionDef.fieldName, t.injectionDef.class, list)
 	}
@@ -187,6 +223,24 @@ func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
 			}
 		}
 		field.Set(newSlice)
+		return nil
+	}
+
+	if t.table {
+
+		field.Set(reflect.MakeMap(field.Type()))
+
+		visited := make(map[string]bool)
+		for _, instance := range list {
+			if !instance.valuePtr.IsValid() {
+				if visited[instance.name] {
+					return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v'", instance.name, t.fieldName, t.class)
+				}
+				visited[instance.name] = true
+				field.SetMapIndex(reflect.ValueOf(instance.name), instance.valuePtr)
+			}
+		}
+
 		return nil
 	}
 

@@ -50,15 +50,19 @@ func (t *orderedElementX) BeanOrder() int {
 
 var holderXClass = reflect.TypeOf((*holderX)(nil)) // *holderX
 type holderX struct {
-	Array []*elementX `inject`
-	//Map    map[string]*elementX   `inject`
+	Array   []*elementX `inject`
 	testing *testing.T
 }
 
-var orderedHolderXClass = reflect.TypeOf((*orderedHolderX)(nil)) // *holderX
+var holderMapClass = reflect.TypeOf((*holderMap)(nil)) // *holderMap
+type holderMap struct {
+	Map     map[string]*elementX `inject`
+	testing *testing.T
+}
+
+var orderedHolderXClass = reflect.TypeOf((*orderedHolderX)(nil)) // *orderedHolderX
 type orderedHolderX struct {
-	Array []*orderedElementX `inject`
-	//Map    map[string]*elementX   `inject`
+	Array   []*orderedElementX `inject`
 	testing *testing.T
 }
 
@@ -66,6 +70,17 @@ func TestArrayRequiredByPointer(t *testing.T) {
 
 	_, err := beans.Create(
 		&holderX{testing: t},
+	)
+	require.NotNil(t, err)
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "can not find candidates"))
+
+}
+
+func TestMapRequiredByPointer(t *testing.T) {
+
+	_, err := beans.Create(
+		&holderMap{testing: t},
 	)
 	require.NotNil(t, err)
 	println(err.Error())
@@ -154,6 +169,60 @@ func TestOrderedArrayByPointer(t *testing.T) {
 
 }
 
+func TestMapByPointer(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&elementX{name: "a"},
+		&elementX{name: "b"},
+		&elementX{name: "c"},
+		&holderMap{testing: t},
+	)
+	require.NoError(t, err)
+
+	b := ctx.Bean(holderMapClass)
+	require.Equal(t, 1, len(b))
+
+	holder := b[0].(*holderMap)
+	require.NotNil(t, holder.Map)
+	require.Equal(t, 3, len(holder.Map))
+
+	require.Equal(t, "a", holder.Map["a"].BeanName())
+	require.Equal(t, "b", holder.Map["b"].BeanName())
+	require.Equal(t, "c", holder.Map["c"].BeanName())
+
+	el := ctx.Lookup("a")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "a", el[0].(*elementX).BeanName())
+
+	el = ctx.Lookup("b")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "b", el[0].(*elementX).BeanName())
+
+	el = ctx.Lookup("c")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "c", el[0].(*elementX).BeanName())
+
+}
+
+func TestMapDuplicatesByPointer(t *testing.T) {
+
+	beans.Verbose = true
+
+	_, err := beans.Create(
+		&elementX{name: "a"},
+		&elementX{name: "a"},
+		&elementX{name: "b"},
+		&holderMap{testing: t},
+	)
+
+	require.NotNil(t, err)
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "duplicates"))
+
+}
+
 var ElementClass = reflect.TypeOf((*Element)(nil)).Elem()
 
 type Element interface {
@@ -192,13 +261,39 @@ type holderImpl struct {
 }
 
 func (t *holderImpl) Elements() []Element {
+	require.NotNil(t.testing, t.Array)
 	return t.Array
+}
+
+type holderMapImpl struct {
+	Map     map[string]Element `inject`
+	testing *testing.T
+}
+
+func (t *holderMapImpl) Elements() []Element {
+	require.NotNil(t.testing, t.Map)
+	var list []Element
+	for _, value := range t.Map {
+		list = append(list, value)
+	}
+	return list
 }
 
 func TestArrayRequiredByInterface(t *testing.T) {
 
 	_, err := beans.Create(
 		&holderImpl{testing: t},
+	)
+	require.NotNil(t, err)
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "can not find candidates"))
+
+}
+
+func TestMapRequiredByInterface(t *testing.T) {
+
+	_, err := beans.Create(
+		&holderMapImpl{testing: t},
 	)
 	require.NotNil(t, err)
 	println(err.Error())
@@ -281,6 +376,57 @@ func TestOrderedArrayByInterface(t *testing.T) {
 
 }
 
+func TestMapByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	// initialization order
+	ctx, err := beans.Create(
+		&elementImpl{name: "a"},
+		&elementImpl{name: "b"},
+		&elementImpl{name: "c"},
+		&holderMapImpl{testing: t},
+	)
+	require.NoError(t, err)
+
+	b := ctx.Bean(HolderClass)
+	require.Equal(t, 1, len(b))
+	holder := b[0].(Holder)
+
+	require.Equal(t, 3, len(holder.Elements()))
+
+	el := ctx.Lookup("a")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "a", el[0].(Element).BeanName())
+
+	el = ctx.Lookup("b")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "b", el[0].(Element).BeanName())
+
+	el = ctx.Lookup("c")
+	require.Equal(t, 1, len(el))
+	require.Equal(t, "c", el[0].(Element).BeanName())
+
+}
+
+func TestMapDuplicatesByInterface(t *testing.T) {
+
+	beans.Verbose = true
+
+	// initialization order
+	_, err := beans.Create(
+		&elementImpl{name: "a"},
+		&elementImpl{name: "a"},
+		&elementImpl{name: "b"},
+		&holderMapImpl{testing: t},
+	)
+
+	require.NotNil(t, err)
+	println(err.Error())
+	require.True(t, strings.Contains(err.Error(), "duplicates"))
+
+}
+
 type specificHolderImpl struct {
 	Array   []Element `inject:"bean=a"`
 	testing *testing.T
@@ -305,5 +451,37 @@ func TestArraySpecificByInterface(t *testing.T) {
 	holder := b[0].(Holder)
 
 	require.Equal(t, 2, len(holder.Elements()))
+
+}
+
+type specificMapHolderImpl struct {
+	Map     map[string]Element `inject:"bean=a"`
+	testing *testing.T
+}
+
+func (t *specificMapHolderImpl) Elements() []Element {
+	require.NotNil(t.testing, t.Map)
+	var list []Element
+	for _, value := range t.Map {
+		list = append(list, value)
+	}
+	return list
+}
+
+func TestMapSpecificByInterface(t *testing.T) {
+
+	ctx, err := beans.Create(
+		&elementImpl{name: "a"},
+		&elementImpl{name: "b"},
+		&elementImpl{name: "b"},
+		&specificMapHolderImpl{testing: t},
+	)
+	require.NoError(t, err)
+
+	b := ctx.Bean(HolderClass)
+	require.Equal(t, 1, len(b))
+	holder := b[0].(Holder)
+
+	require.Equal(t, 1, len(holder.Elements()))
 
 }
