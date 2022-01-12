@@ -2,15 +2,15 @@
 
 Dependency Injection Runtime Framework for Golang inspired by Spring Framework in Java.
 
-All injections happens on runtime and took O(n*m) complexity, where n - number of interfaces, m - number of services.
+All injections happen on runtime and took O(n*m) complexity, where n - number of interfaces, m - number of services.
 In golang we have to check each interface with each instance to know if they are compatible. 
 All injectable fields must have tag `inject` and be public.
 
 ### Usage
 
 Dependency Injection framework for complex applications written in Golang.
-There is no capability to scan components in packages provided by Golang language, therefore the context creation needs to see all beans as instances.
-The best practices are to inject beans by interfaces, but scan implementations.
+There is no capability to scan components in packages provided by Golang language itself, therefore the context creation needs to see all beans as memory allocated instances by pointers.
+The best practices are to inject beans by interfaces between each other, but create context of their implementations.
 
 Example:
 ```
@@ -20,11 +20,27 @@ var ctx, err = beans.Create(
     &configServiceImpl{},
     &userServiceImpl{},
     &struct {
-        UserService UserService `inject`
-    }{}, // could be used by runtime injects
+        UserService UserService `inject`  // injection based by interface, not pointer to struct
+    }{}, 
 )
 require.Nil(t, err)
 defer ctx.Close()
+```
+
+Beans Framework does not support antonymous injection fields.
+
+Wrong:
+```
+type wrong struct {
+    UserService `inject`  // if UserService interface has method X that also implements by *wrong struct or another antonymous injected field then we can not determine right call 
+}
+```
+
+Right:
+```
+type right struct {
+    UserService UserService `inject`  // guarantees less conflicts with method names and dependencies
+}
 ```
 
 ### Types
