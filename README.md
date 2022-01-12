@@ -45,12 +45,12 @@ type right struct {
 
 ### Types
 
-Bean Framework supports following types for beans:
+Beans Framework supports following types for beans:
 * Pointer to struct
 * Interface
 * Function
 
-Bean Framework does not support Struct type as bean instance type. 
+Beans Framework does not support Struct type as bean instance type. 
 
 ### Function
 
@@ -274,7 +274,7 @@ When we destroy child context, parent context would be still alive.
 Example:
 ```
 child.Close()
-// Extend method does not transfer ownership of beans from parent to child context, you would need to close parent context separatelly
+// Extend method does not transfer ownership of beans from parent to child context, you would need to close parent context separatelly, after child
 parent.Close()
 ```
 
