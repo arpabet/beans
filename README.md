@@ -74,6 +74,7 @@ ctx.Close()
 ### Collections 
  
 Beans Framework supports injection of bean collections like Slice and Map.
+All collection injections would be treated as collection of beans, if you need to inject collection of primitive types, please use function injection.
 
 Example:
 ```
