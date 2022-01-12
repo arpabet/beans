@@ -153,3 +153,16 @@ type NamedBean interface {
 	*/
 	BeanName() string
 }
+
+/**
+This interface used to collect beans in list with specific order
+*/
+var OrderedBeanClass = reflect.TypeOf((*OrderedBean)(nil)).Elem()
+
+type OrderedBean interface {
+
+	/**
+	Returns bean order
+	*/
+	BeanOrder() int
+}

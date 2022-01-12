@@ -206,18 +206,6 @@ func (t *beanlist) forEach(cb func(*bean)) {
 	}
 }
 
-func (t *beanlist) hasName(name string) bool {
-	for b := t.head; b != nil; b = b.next {
-		if b.name == name {
-			return true
-		}
-		if b == t.tail {
-			break
-		}
-	}
-	return false
-}
-
 func (t *beanlist) String() string {
 	if t.head != nil {
 		return t.head.String()
@@ -296,6 +284,10 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 			switch field.Type {
 			case NamedBeanClass:
 				stub := &namedBeanStub{name: classPtr.String()}
+				stubValuePtr := reflect.ValueOf(stub)
+				value.Field(j).Set(stubValuePtr)
+			case OrderedBeanClass:
+				stub := &orderedBeanStub{}
 				stubValuePtr := reflect.ValueOf(stub)
 				value.Field(j).Set(stubValuePtr)
 			case InitializingBeanClass:
