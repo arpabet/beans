@@ -153,6 +153,10 @@ func TestPostConstructWithError(t *testing.T) {
 
 }
 
+/**
+	Cycle dependency test with PostConstruct method
+ */
+
 type aService struct {
 	beans.InitializingBean
 	testing  *testing.T
