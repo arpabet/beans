@@ -21,7 +21,6 @@ package beans_test
 import (
 	"github.com/stretchr/testify/require"
 	"go.arpabet.com/beans"
-	"strings"
 	"testing"
 )
 
@@ -50,10 +49,8 @@ func TestPlainBeanCycle(t *testing.T) {
 		&bPlainBean{},
 		&cPlainBean{},
 	)
+	require.NoError(t, err)
+	ctx.Close()
 
-	require.NotNil(t, err)
-	require.Nil(t, ctx)
-	require.True(t, strings.Contains(err.Error(), "cycle"))
-	println(err.Error())
 }
 

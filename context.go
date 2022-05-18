@@ -541,13 +541,18 @@ func (t *context) constructBean(bean *bean, stack []*bean) error {
 		}
 	}
 
-	for _, dep := range bean.dependencies {
-		if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
-			return err
+	_, isFactoryBean := bean.obj.(FactoryBean)
+	initializer, hasConstructor := bean.obj.(InitializingBean)
+
+	if isFactoryBean || hasConstructor {
+		for _, dep := range bean.dependencies {
+			if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
+				return err
+			}
 		}
 	}
 
-	if initializer, ok := bean.obj.(InitializingBean); ok {
+	if hasConstructor {
 		if err := initializer.PostConstruct(); err != nil {
 			return errors.Errorf("post construct failed %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
 		}
