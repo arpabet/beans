@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2020-present Arpabet, Inc.
+ * Copyright 2020-present Arpabet LLC.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,6 +152,10 @@ func TestPostConstructWithError(t *testing.T) {
 	require.True(t, strings.Contains(err.Error(), "server construct error"))
 
 }
+
+/**
+	Cycle dependency test with PostConstruct method
+ */
 
 type aService struct {
 	beans.InitializingBean
