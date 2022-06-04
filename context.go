@@ -364,6 +364,10 @@ func forEach(initialPos string, scan []interface{}, cb func(i string, obj interf
 			continue
 		}
 		switch obj := item.(type) {
+		case Scanner:
+			if err := forEach(pos, obj.Beans(), cb); err != nil {
+				return err
+			}
 		case []interface{}:
 			if err := forEach(pos, obj, cb); err != nil {
 				return err

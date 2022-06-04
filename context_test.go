@@ -282,6 +282,36 @@ func TestCreateArray(t *testing.T) {
 
 }
 
+type scannerImpl struct {
+	arr []interface{}
+}
+
+// implements beans.Scanner
+func (t scannerImpl) Beans() []interface{} {
+	return t.arr
+}
+
+func TestCreateScanner(t *testing.T) {
+
+	beans.Verbose = true
+	logger := log.New(os.Stderr, "beans: ", log.LstdFlags)
+
+	scanner := scannerImpl{
+		arr: []interface{} {logger, &storageImpl{}, &configServiceImpl{}},
+	}
+
+	ctx, err := beans.Create(
+		scanner,
+		&userServiceImpl{},
+		&appServiceImpl{},
+	)
+
+	require.Nil(t, err)
+	require.NotNil(t, ctx)
+	require.Equal(t, 6, len(ctx.Core()))
+
+}
+
 type requestScope struct {
 	requestParams string      // scope `runtime`
 	UserService   UserService `inject` // with `inject` tag it guarantees non-null instance

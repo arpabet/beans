@@ -85,6 +85,19 @@ type Context interface {
 }
 
 /**
+This interface used to provide pre-scanned instances in beans.Create method
+*/
+var ScannerClass = reflect.TypeOf((*Scanner)(nil)).Elem()
+
+type Scanner interface {
+
+	/**
+	Returns pre-scanned instances
+	*/
+	Beans() []interface{}
+}
+
+/**
 The bean object would be created after Object() function call.
 
 ObjectType can be pointer to structure or interface.
