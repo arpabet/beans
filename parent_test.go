@@ -25,6 +25,7 @@ import (
 	"testing"
 )
 
+var coreBeanClass = reflect.TypeOf((*coreBean)(nil)) // *serviceBean
 type coreBean struct {
 	count int
 }
@@ -54,14 +55,15 @@ func TestParent(t *testing.T) {
 	parent, err := beans.Create(
 		&coreBean{},
 	)
-
 	require.NoError(t, err)
+	defer parent.Close()
 
 	service, err := parent.Extend(
 		&serviceBean{testing: t},
 	)
-
 	require.NoError(t, err)
+	defer service.Close()
+
 	p, _ := service.Parent()
 	require.Equal(t, parent, p)
 
@@ -69,6 +71,12 @@ func TestParent(t *testing.T) {
 	require.Equal(t, 1, len(b))
 
 	b[0].(*serviceBean).Run()
+
+	b = service.Bean(coreBeanClass)
+	require.Equal(t, 1, len(b))
+
+	cnt := b[0].(*coreBean).count
+	require.Equal(t, 3, cnt)
 
 }
 
