@@ -20,6 +20,84 @@ package beans
 
 import "reflect"
 
+type BeanLifecycle int32
+
+const (
+	BeanAllocated BeanLifecycle = iota
+	BeanCreated
+	BeanConstructing
+	BeanInitialized
+	BeanDestroying
+	BeanDestroyed
+)
+
+func (t BeanLifecycle) String() string {
+	switch t {
+	case BeanAllocated:
+		return "BeanAllocated"
+	case BeanCreated:
+		return "BeanCreated"
+	case BeanConstructing:
+		return "BeanConstructing"
+	case BeanInitialized:
+		return "BeanInitialized"
+	case BeanDestroying:
+		return "BeanDestroying"
+	case BeanDestroyed:
+		return "BeanDestroyed"
+	default:
+		return "BeanUnknown"
+	}
+}
+
+var BeanClass = reflect.TypeOf((*Bean)(nil)).Elem()
+
+type Bean interface {
+
+	/**
+	Returns name of the bean, that could be instance name with package or if instance implements NamedBean interface it would be result of BeanName() call.
+	*/
+	Name() string
+
+	/**
+	Returns real type of the bean
+	*/
+	Class() reflect.Type
+
+	/**
+	Returns true if bean implements interface
+	*/
+	Implements(ifaceType reflect.Type) bool
+
+	/**
+	Returns initialized object of the bean
+	*/
+	Object() interface{}
+
+	/**
+	Returns factory bean of exist only beans created by FactoryBean interface
+	*/
+	FactoryBean() (Bean, bool)
+
+	/**
+	Re-initialize bean by calling Destroy method if bean implements DisposableBean interface
+	and then calls PostConstruct method if bean implements InitializingBean interface
+
+	Reload can not be used for beans created by FactoryBean, since the instances are already injected
+	*/
+	Reload() error
+
+	/**
+	Returns current bean lifecycle
+	*/
+	Lifecycle() BeanLifecycle
+
+	/**
+	Returns information about the bean
+	*/
+	String() string
+}
+
 var ContextClass = reflect.TypeOf((*Context)(nil)).Elem()
 
 type Context interface {
@@ -52,8 +130,11 @@ type Context interface {
 		}
 
 		list := ctx.Bean(reflect.TypeOf((*app.UserService)(nil)).Elem())
+
+	Lookup parent context only for beans that were used in injection inside child context.
+	If you need to lookup all beans, use the loop with Parent() call.
 	*/
-	Bean(typ reflect.Type) []interface{}
+	Bean(typ reflect.Type) []Bean
 
 	/**
 	Lookup registered beans in context by name.
@@ -63,8 +144,11 @@ type Context interface {
 	Example:
 		beans := ctx.Bean("app.UserService")
 		beans := ctx.Bean("userService")
+
+	Lookup parent context only for beans that were used in injection inside child context.
+	If you need to lookup all beans, use the loop with Parent() call.
 	*/
-	Lookup(name string) []interface{}
+	Lookup(name string) []Bean
 
 	/**
 	Inject fields in to the obj on runtime that is not part of core context.
@@ -82,6 +166,11 @@ type Context interface {
 	*/
 
 	Inject(interface{}) error
+
+	/**
+	Returns information about context
+	*/
+	String() string
 }
 
 /**

@@ -36,8 +36,9 @@ func TestCreateNil(t *testing.T) {
 	// skip all nil beans
 	ctx, err := beans.Create(nil)
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, ctx)
+	defer ctx.Close()
 }
 
 func TestCreateNilArray(t *testing.T) {
@@ -45,20 +46,23 @@ func TestCreateNilArray(t *testing.T) {
 	// skip all nil beans
 	ctx, err := beans.Create([]interface{}{nil, nil})
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, ctx)
+	defer ctx.Close()
 }
 
 func TestCreateEmpty(t *testing.T) {
 
 	ctx, err := beans.Create()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, ctx)
+	defer ctx.Close()
+
 	require.Equal(t, 1, len(ctx.Core()))
 
 	c := ctx.Bean(beans.ContextClass)
 	require.Equal(t, 1, len(c))
-	require.Equal(t, ctx, c[0])
+	require.Equal(t, ctx, c[0].Object())
 
 }
 
@@ -227,38 +231,40 @@ func TestCreate(t *testing.T) {
 		}{},
 	)
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, ctx)
+	defer ctx.Close()
+
 	require.Equal(t, 7, len(ctx.Core()))
 
 	beans := ctx.Lookup("storage")
 	require.Equal(t, 1, len(beans))
-	storageInstance := beans[0].(*storageImpl)
+	storageInstance := beans[0].Object().(*storageImpl)
 	require.NotNil(t, storageInstance)
 	require.Equal(t, storageInstance.Logger, logger)
-	require.Equal(t, storageInstance, ctx.Bean(StorageClass)[0])
+	require.Equal(t, storageInstance, ctx.Bean(StorageClass)[0].Object())
 
 	beans = ctx.Lookup("configService")
 	require.Equal(t, 1, len(beans))
-	configServiceInstance := beans[0].(*configServiceImpl)
+	configServiceInstance := beans[0].Object().(*configServiceImpl)
 	require.NotNil(t, configServiceInstance)
 	require.Equal(t, configServiceInstance.Storage, storageInstance)
-	require.Equal(t, configServiceInstance, ctx.Bean(ConfigServiceClass)[0])
+	require.Equal(t, configServiceInstance, ctx.Bean(ConfigServiceClass)[0].Object())
 
 	beans = ctx.Lookup("*beans_test.userServiceImpl")
 	require.Equal(t, 1, len(beans))
-	userServiceInstance := beans[0].(*userServiceImpl)
+	userServiceInstance := beans[0].Object().(*userServiceImpl)
 	require.NotNil(t, userServiceInstance)
 	require.Equal(t, userServiceInstance.Storage, storageInstance)
 	require.Equal(t, userServiceInstance.ConfigService, configServiceInstance)
-	require.Equal(t, userServiceInstance, ctx.Bean(UserServiceClass)[0])
+	require.Equal(t, userServiceInstance, ctx.Bean(UserServiceClass)[0].Object())
 
 	beans = ctx.Lookup("*beans_test.appServiceImpl")
 	require.Equal(t, 1, len(beans))
-	appServiceInstance := beans[0].(*appServiceImpl)
+	appServiceInstance := beans[0].Object().(*appServiceImpl)
 	require.NotNil(t, appServiceInstance)
 	require.Equal(t, ctx, appServiceInstance.GetContext())
-	require.Equal(t, appServiceInstance, ctx.Bean(AppServiceClass)[0])
+	require.Equal(t, appServiceInstance, ctx.Bean(AppServiceClass)[0].Object())
 
 }
 
@@ -276,8 +282,10 @@ func TestCreateArray(t *testing.T) {
 		&appServiceImpl{},
 	)
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, ctx)
+	defer ctx.Close()
+
 	require.Equal(t, 6, len(ctx.Core()))
 
 }
@@ -297,7 +305,7 @@ func TestCreateScanner(t *testing.T) {
 	logger := log.New(os.Stderr, "beans: ", log.LstdFlags)
 
 	scanner := scannerImpl{
-		arr: []interface{} {logger, &storageImpl{}, &configServiceImpl{}},
+		arr: []interface{}{logger, &storageImpl{}, &configServiceImpl{}},
 	}
 
 	ctx, err := beans.Create(
@@ -306,8 +314,10 @@ func TestCreateScanner(t *testing.T) {
 		&appServiceImpl{},
 	)
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, ctx)
+	defer ctx.Close()
+
 	require.Equal(t, 6, len(ctx.Core()))
 
 }
@@ -335,7 +345,8 @@ func TestRequest(t *testing.T) {
 			UserService UserService `inject`
 		}{}, // could be used by runtime injects
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
+	defer ctx.Close()
 
 	controller := &requestScope{
 		requestParams: "username=Bob",
@@ -391,7 +402,8 @@ func TestMissingInterfaceBean(t *testing.T) {
 		&configServiceImpl{},
 		&userServiceImpl{},
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
+	defer ctx.Close()
 
 	beans := ctx.Lookup("beans_test.UserService")
 
@@ -422,7 +434,8 @@ func TestRequestMultithreading(t *testing.T) {
 			UserService UserService `inject`
 		}{}, // could be used by runtime injects
 	)
-	require.Nil(t, err)
+	require.NoError(t, err)
+	defer ctx.Close()
 
 	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {

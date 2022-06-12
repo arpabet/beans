@@ -42,8 +42,8 @@ type DosService interface {
 }
 
 type unoServiceImpl struct {
-	DosService DosService `inject:"lazy"`
-	testing    *testing.T
+	DosService  DosService `inject:"lazy"`
+	testing     *testing.T
 	initialized bool
 }
 
@@ -75,8 +75,8 @@ func (t *unoServiceImpl) Uno() {
 }
 
 type dosServiceImpl struct {
-	UnoService UnoService `inject`
-	testing    *testing.T
+	UnoService  UnoService `inject`
+	testing     *testing.T
 	initialized bool
 }
 
@@ -119,16 +119,17 @@ func TestLazyBeanInterface(t *testing.T) {
 	)
 
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	unoService := ctx.Bean(UnoServiceClass)
 	require.Equal(t, 1, len(unoService))
 
-	unoService[0].(UnoService).Uno()
+	unoService[0].Object().(UnoService).Uno()
 
 	dosService := ctx.Bean(DosServiceClass)
 	require.Equal(t, 1, len(dosService))
 
-	dosService[0].(DosService).Dos()
+	dosService[0].Object().(DosService).Dos()
 
 }
 
@@ -136,8 +137,8 @@ var ZeroServiceClass = reflect.TypeOf((*zeroService)(nil))
 
 type zeroService struct {
 	beans.InitializingBean
-	UnService  *unService `inject:"lazy"`
-	testing   *testing.T
+	UnService   *unService `inject:"lazy"`
+	testing     *testing.T
 	Initialized bool
 }
 
@@ -192,15 +193,16 @@ func TestLazyBeanPointers(t *testing.T) {
 	)
 
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	zero := ctx.Bean(ZeroServiceClass)
 	require.Equal(t, 1, len(zero))
 
-	zero[0].(*zeroService).Zero()
+	zero[0].Object().(*zeroService).Zero()
 
 	un := ctx.Bean(UnServiceClass)
 	require.Equal(t, 1, len(un))
 
-	un[0].(*unService).Un()
+	un[0].Object().(*unService).Un()
 
 }

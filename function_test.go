@@ -26,9 +26,9 @@ import (
 )
 
 type functionHolder struct {
-	Int           func() int                `inject`
-	StringArray   func() []string           `inject`
-	SomeMap       func() map[string]string  `inject`
+	Int         func() int               `inject`
+	StringArray func() []string          `inject`
+	SomeMap     func() map[string]string `inject`
 }
 
 func TestPrimitiveFunctions(t *testing.T) {
@@ -40,8 +40,8 @@ func TestPrimitiveFunctions(t *testing.T) {
 	ctx, err := beans.Create(
 		holder,
 		func() int { return 123 },
-		func() []string { return []string{ "a", "b" }},
-		func() map[string]string { return map[string]string {"a": "b"}},
+		func() []string { return []string{"a", "b"} },
+		func() map[string]string { return map[string]string{"a": "b"} },
 	)
 	require.NoError(t, err)
 	defer ctx.Close()
@@ -99,7 +99,6 @@ func TestFunctions(t *testing.T) {
 		srv,
 	)
 	require.NoError(t, err)
-
 	defer ctx.Close()
 
 	require.NotNil(t, srv.ClientBeans)
@@ -107,7 +106,7 @@ func TestFunctions(t *testing.T) {
 
 	list := ctx.Bean(ClientBeansClass)
 	require.Equal(t, 1, len(list))
-	cbs := list[0].(ClientBeans)
+	cbs := list[0].Object().(ClientBeans)
 
 	require.Equal(t, reflect.ValueOf(clientBeans).Pointer(), reflect.ValueOf(cbs).Pointer())
 
@@ -118,7 +117,7 @@ func TestFunctions(t *testing.T) {
 
 	list = ctx.Bean(ServerBeansClass)
 	require.Equal(t, 1, len(list))
-	sbs := list[0].(ServerBeans)
+	sbs := list[0].Object().(ServerBeans)
 
 	require.Equal(t, reflect.ValueOf(serverBeans).Pointer(), reflect.ValueOf(sbs).Pointer())
 	require.Nil(t, sbs())

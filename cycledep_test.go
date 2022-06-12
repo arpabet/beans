@@ -25,7 +25,7 @@ import (
 )
 
 /**
-	Cycle dependency test of plain beans
+Cycle dependency test of plain beans
 */
 
 type aPlainBean struct {
@@ -50,7 +50,6 @@ func TestPlainBeanCycle(t *testing.T) {
 		&cPlainBean{},
 	)
 	require.NoError(t, err)
-	ctx.Close()
+	defer ctx.Close()
 
 }
-

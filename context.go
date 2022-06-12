@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 )
 
 var Verbose bool
@@ -239,7 +238,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 	// direct match
 	for requiredType, injects := range pointers {
 
-		if direct, ok := ctx.findDirectRec(requiredType); ok {
+		if direct, ok := ctx.findDirectRecursive(requiredType); ok {
 
 			ctx.registry.addBeanList(requiredType, direct)
 
@@ -281,7 +280,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 	// interface match
 	for ifaceType, injects := range interfaces {
 
-		candidates := ctx.searchCandidatesRec(ifaceType)
+		candidates := ctx.searchCandidatesRecursive(ifaceType)
 		if len(candidates) == 0 {
 
 			if Verbose {
@@ -334,11 +333,11 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 
 }
 
-func (t *context) findDirectRec(requiredType reflect.Type) (*beanlist, bool) {
+func (t *context) findDirectRecursive(requiredType reflect.Type) (*beanlist, bool) {
 	if direct, ok := t.core[requiredType]; ok {
 		return direct, ok
 	} else if t.parent != nil {
-		return t.parent.findDirectRec(requiredType)
+		return t.parent.findDirectRecursive(requiredType)
 	} else {
 		return nil, false
 	}
@@ -391,17 +390,17 @@ func (t *context) Core() []reflect.Type {
 	return list
 }
 
-func (t *context) Bean(typ reflect.Type) []interface{} {
-	var obj []interface{}
+func (t *context) Bean(typ reflect.Type) []Bean {
+	var beanList []Bean
 	if list, ok := t.getBean(typ); ok {
 		for _, b := range list {
-			obj = append(obj, b.obj)
+			beanList = append(beanList, b)
 		}
 	}
-	return obj
+	return beanList
 }
 
-func (t *context) Lookup(iface string) []interface{} {
+func (t *context) Lookup(iface string) []Bean {
 	return t.registry.findByName(iface)
 }
 
@@ -497,7 +496,6 @@ func (t *context) constructBeanList(list *beanlist, stack []*bean) error {
 }
 
 func (t *context) constructBean(bean *bean, stack []*bean) error {
-
 	if bean.lifecycle == BeanInitialized {
 		return nil
 	}
@@ -510,8 +508,10 @@ func (t *context) constructBean(bean *bean, stack []*bean) error {
 		}
 	}
 	bean.lifecycle = BeanConstructing
+	bean.ctorMu.Lock()
 	defer func() {
 		bean.lifecycle = BeanInitialized
+		bean.ctorMu.Unlock()
 	}()
 
 	if bean.beenFactory != nil && bean.obj == nil {
@@ -587,18 +587,22 @@ func (t *context) Close() error {
 	t.destroyOnce.Do(func() {
 		n := len(t.disposables)
 		for j := n - 1; j >= 0; j-- {
-			atomic.StoreInt32(&t.disposables[j].lifecycle, BeanDestroyed)
-			if dis, ok := t.disposables[j].obj.(DisposableBean); ok {
-				if e := dis.Destroy(); e != nil {
-					err = append(err, e)
+			if t.disposables[j].lifecycle == BeanInitialized {
+				t.disposables[j].lifecycle = BeanDestroying
+				if dis, ok := t.disposables[j].obj.(DisposableBean); ok {
+					if e := dis.Destroy(); e != nil {
+						err = append(err, e)
+					} else {
+						t.disposables[j].lifecycle = BeanDestroyed
+					}
 				}
 			}
 		}
 	})
-	return multiple(err)
+	return multipleErr(err)
 }
 
-func multiple(err []error) error {
+func multipleErr(err []error) error {
 	switch len(err) {
 	case 0:
 		return nil
@@ -611,10 +615,10 @@ func multiple(err []error) error {
 
 var errNotFoundInterface = errors.New("not found")
 
-func (t *context) searchCandidatesRec(ifaceType reflect.Type) []*beanlist {
+func (t *context) searchCandidatesRecursive(ifaceType reflect.Type) []*beanlist {
 	list := t.searchCandidates(ifaceType)
 	if len(list) == 0 && t.parent != nil {
-		return t.parent.searchCandidatesRec(ifaceType)
+		return t.parent.searchCandidatesRecursive(ifaceType)
 	}
 	return list
 }
@@ -679,4 +683,8 @@ func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*beanlist) 
 	default:
 		return nil, errors.Errorf("found two or more implementation of interface '%v', candidates=%v", ifaceType, candidates)
 	}
+}
+
+func (t *context) String() string {
+	return fmt.Sprintf("Context [hasParent=%v, types=%d, destructors=%d]", t.parent != nil, len(t.core), len(t.disposables))
 }

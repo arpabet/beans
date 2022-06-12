@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"reflect"
 	"strings"
+	"sync"
 )
 
 type beanDef struct {
@@ -43,31 +44,6 @@ type beanDef struct {
 	Fields that are going to be injected
 	*/
 	fields []*injectionDef
-}
-
-const (
-	BeanAllocated int32 = iota
-	BeanCreated
-	BeanConstructing
-	BeanInitialized
-	BeanDestroyed
-)
-
-func StringifyLifecycle(n int32) string {
-	switch n {
-	case BeanAllocated:
-		return "BeanAllocated"
-	case BeanCreated:
-		return "BeanCreated"
-	case BeanConstructing:
-		return "BeanConstructing"
-	case BeanInitialized:
-		return "BeanInitialized"
-	case BeanDestroyed:
-		return "BeanDestroyed"
-	default:
-		return "BeanUnknown"
-	}
 }
 
 type bean struct {
@@ -105,7 +81,7 @@ type bean struct {
 	/**
 	Bean lifecycle
 	*/
-	lifecycle int32
+	lifecycle BeanLifecycle
 
 	/**
 	List of beans that should initialize before current bean
@@ -121,6 +97,11 @@ type bean struct {
 	Next bean in the list
 	*/
 	next *bean
+
+	/**
+	Constructor mutex for the bean
+	*/
+	ctorMu sync.Mutex
 }
 
 func (t *bean) String() string {
@@ -129,6 +110,58 @@ func (t *bean) String() string {
 	} else {
 		return fmt.Sprintf("<Bean %s>", t.beanDef.classPtr)
 	}
+}
+
+func (t *bean) Name() string {
+	return t.name
+}
+
+func (t *bean) Class() reflect.Type {
+	return t.beanDef.classPtr
+}
+
+func (t *bean) Implements(ifaceType reflect.Type) bool {
+	return t.beanDef.implements(ifaceType)
+}
+
+func (t *bean) Object() interface{} {
+	return t.obj
+}
+
+func (t *bean) FactoryBean() (Bean, bool) {
+	if t.beenFactory != nil {
+		return t.beenFactory.bean, true
+	} else {
+		return nil, false
+	}
+}
+
+func (t *bean) Reload() error {
+	t.ctorMu.Lock()
+	defer t.ctorMu.Unlock()
+
+	t.lifecycle = BeanDestroying
+	if dis, ok := t.obj.(DisposableBean); ok {
+		if err := dis.Destroy(); err != nil {
+			return err
+		}
+	}
+	t.lifecycle = BeanConstructing
+	if t.beenFactory != nil {
+		return errors.Errorf("bean '%s' was created by factory bean '%v and can not be reloaded", t.name, t.beenFactory.factoryClassPtr)
+	} else {
+		if init, ok := t.obj.(InitializingBean); ok {
+			if err := init.PostConstruct(); err != nil {
+				return err
+			}
+		}
+	}
+	t.lifecycle = BeanInitialized
+	return nil
+}
+
+func (t *bean) Lifecycle() BeanLifecycle {
+	return t.lifecycle
 }
 
 /**
@@ -146,6 +179,7 @@ type factory struct {
 	Bean associated with Factory in context
 	*/
 	bean *bean
+
 	/**
 	Instance to the factory bean
 	*/

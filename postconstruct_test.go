@@ -120,13 +120,12 @@ func TestPostConstruct(t *testing.T) {
 		}{},
 	)
 	require.NoError(t, err)
-
 	defer ctx.Close()
 
 	client := ctx.Bean(ClientServiceClass)
 	require.Equal(t, 1, len(client))
 
-	client[0].(ClientService).Run("t3st")
+	client[0].Object().(ClientService).Run("t3st")
 
 }
 
@@ -154,8 +153,8 @@ func TestPostConstructWithError(t *testing.T) {
 }
 
 /**
-	Cycle dependency test with PostConstruct method
- */
+Cycle dependency test with PostConstruct method
+*/
 
 type aService struct {
 	beans.InitializingBean

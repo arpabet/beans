@@ -49,11 +49,12 @@ func TestBeanByPointer(t *testing.T) {
 		&secondBean{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	second := ctx.Bean(SecondBeanClass)
 	require.Equal(t, 1, len(second))
 
-	second[0].(*secondBean).Run()
+	second[0].Object().(*secondBean).Run()
 
 }
 
@@ -132,16 +133,17 @@ func TestBeanByInterface(t *testing.T) {
 	)
 
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	firstService := ctx.Bean(FirstServiceClass)
 	require.Equal(t, 1, len(firstService))
 
-	firstService[0].(FirstService).First()
+	firstService[0].Object().(FirstService).First()
 
 	secondService := ctx.Bean(SecondServiceClass)
 	require.Equal(t, 1, len(secondService))
 
-	secondService[0].(SecondService).Second()
+	secondService[0].Object().(SecondService).Second()
 
 }
 
@@ -187,11 +189,12 @@ func TestSpecificBeanByInterface(t *testing.T) {
 	)
 
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	firstService := ctx.Bean(FirstServiceClass)
 	require.Equal(t, 2, len(firstService))
 
-	firstService[0].(FirstService).First()
+	firstService[0].Object().(FirstService).First()
 
 }
 

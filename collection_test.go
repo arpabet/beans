@@ -100,11 +100,12 @@ func TestArrayByPointer(t *testing.T) {
 		&holderX{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(holderXClass)
 	require.Equal(t, 1, len(b))
 
-	holder := b[0].(*holderX)
+	holder := b[0].Object().(*holderX)
 	require.NotNil(t, holder.Array)
 	require.Equal(t, 3, len(holder.Array))
 
@@ -115,15 +116,15 @@ func TestArrayByPointer(t *testing.T) {
 
 	el := ctx.Lookup("a")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "a", el[0].(*elementX).BeanName())
+	require.Equal(t, "a", el[0].Object().(*elementX).BeanName())
 
 	el = ctx.Lookup("b")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "b", el[0].(*elementX).BeanName())
+	require.Equal(t, "b", el[0].Object().(*elementX).BeanName())
 
 	el = ctx.Lookup("c")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "c", el[0].(*elementX).BeanName())
+	require.Equal(t, "c", el[0].Object().(*elementX).BeanName())
 
 }
 
@@ -139,11 +140,12 @@ func TestOrderedArrayByPointer(t *testing.T) {
 		&orderedHolderX{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(orderedHolderXClass)
 	require.Equal(t, 1, len(b))
 
-	holder := b[0].(*orderedHolderX)
+	holder := b[0].Object().(*orderedHolderX)
 	require.NotNil(t, holder.Array)
 	require.Equal(t, 3, len(holder.Array))
 
@@ -154,18 +156,18 @@ func TestOrderedArrayByPointer(t *testing.T) {
 
 	el := ctx.Lookup("a")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "a", el[0].(*orderedElementX).BeanName())
-	require.Equal(t, 0, el[0].(*orderedElementX).BeanOrder())
+	require.Equal(t, "a", el[0].Object().(*orderedElementX).BeanName())
+	require.Equal(t, 0, el[0].Object().(*orderedElementX).BeanOrder())
 
 	el = ctx.Lookup("b")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "b", el[0].(*orderedElementX).BeanName())
-	require.Equal(t, 1, el[0].(*orderedElementX).BeanOrder())
+	require.Equal(t, "b", el[0].Object().(*orderedElementX).BeanName())
+	require.Equal(t, 1, el[0].Object().(*orderedElementX).BeanOrder())
 
 	el = ctx.Lookup("c")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "c", el[0].(*orderedElementX).BeanName())
-	require.Equal(t, 2, el[0].(*orderedElementX).BeanOrder())
+	require.Equal(t, "c", el[0].Object().(*orderedElementX).BeanName())
+	require.Equal(t, 2, el[0].Object().(*orderedElementX).BeanOrder())
 
 }
 
@@ -180,11 +182,12 @@ func TestMapByPointer(t *testing.T) {
 		&holderMap{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(holderMapClass)
 	require.Equal(t, 1, len(b))
 
-	holder := b[0].(*holderMap)
+	holder := b[0].Object().(*holderMap)
 	require.NotNil(t, holder.Map)
 	require.Equal(t, 3, len(holder.Map))
 
@@ -194,15 +197,15 @@ func TestMapByPointer(t *testing.T) {
 
 	el := ctx.Lookup("a")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "a", el[0].(*elementX).BeanName())
+	require.Equal(t, "a", el[0].Object().(*elementX).BeanName())
 
 	el = ctx.Lookup("b")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "b", el[0].(*elementX).BeanName())
+	require.Equal(t, "b", el[0].Object().(*elementX).BeanName())
 
 	el = ctx.Lookup("c")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "c", el[0].(*elementX).BeanName())
+	require.Equal(t, "c", el[0].Object().(*elementX).BeanName())
 
 }
 
@@ -313,10 +316,11 @@ func TestArrayByInterface(t *testing.T) {
 		&holderImpl{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(HolderClass)
 	require.Equal(t, 1, len(b))
-	holder := b[0].(Holder)
+	holder := b[0].Object().(Holder)
 
 	require.Equal(t, 3, len(holder.Elements()))
 
@@ -327,15 +331,15 @@ func TestArrayByInterface(t *testing.T) {
 
 	el := ctx.Lookup("a")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "a", el[0].(Element).BeanName())
+	require.Equal(t, "a", el[0].Object().(Element).BeanName())
 
 	el = ctx.Lookup("b")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "b", el[0].(Element).BeanName())
+	require.Equal(t, "b", el[0].Object().(Element).BeanName())
 
 	el = ctx.Lookup("c")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "c", el[0].(Element).BeanName())
+	require.Equal(t, "c", el[0].Object().(Element).BeanName())
 
 }
 
@@ -350,10 +354,11 @@ func TestOrderedArrayByInterface(t *testing.T) {
 		&holderImpl{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(HolderClass)
 	require.Equal(t, 1, len(b))
-	holder := b[0].(Holder)
+	holder := b[0].Object().(Holder)
 
 	require.Equal(t, 3, len(holder.Elements()))
 
@@ -364,15 +369,15 @@ func TestOrderedArrayByInterface(t *testing.T) {
 
 	el := ctx.Lookup("a")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "a", el[0].(Element).BeanName())
+	require.Equal(t, "a", el[0].Object().(Element).BeanName())
 
 	el = ctx.Lookup("b")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "b", el[0].(Element).BeanName())
+	require.Equal(t, "b", el[0].Object().(Element).BeanName())
 
 	el = ctx.Lookup("c")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "c", el[0].(Element).BeanName())
+	require.Equal(t, "c", el[0].Object().(Element).BeanName())
 
 }
 
@@ -388,24 +393,25 @@ func TestMapByInterface(t *testing.T) {
 		&holderMapImpl{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(HolderClass)
 	require.Equal(t, 1, len(b))
-	holder := b[0].(Holder)
+	holder := b[0].Object().(Holder)
 
 	require.Equal(t, 3, len(holder.Elements()))
 
 	el := ctx.Lookup("a")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "a", el[0].(Element).BeanName())
+	require.Equal(t, "a", el[0].Object().(Element).BeanName())
 
 	el = ctx.Lookup("b")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "b", el[0].(Element).BeanName())
+	require.Equal(t, "b", el[0].Object().(Element).BeanName())
 
 	el = ctx.Lookup("c")
 	require.Equal(t, 1, len(el))
-	require.Equal(t, "c", el[0].(Element).BeanName())
+	require.Equal(t, "c", el[0].Object().(Element).BeanName())
 
 }
 
@@ -445,10 +451,11 @@ func TestArraySpecificByInterface(t *testing.T) {
 		&specificHolderImpl{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(HolderClass)
 	require.Equal(t, 1, len(b))
-	holder := b[0].(Holder)
+	holder := b[0].Object().(Holder)
 
 	require.Equal(t, 2, len(holder.Elements()))
 
@@ -477,10 +484,11 @@ func TestMapSpecificByInterface(t *testing.T) {
 		&specificMapHolderImpl{testing: t},
 	)
 	require.NoError(t, err)
+	defer ctx.Close()
 
 	b := ctx.Bean(HolderClass)
 	require.Equal(t, 1, len(b))
-	holder := b[0].(Holder)
+	holder := b[0].Object().(Holder)
 
 	require.Equal(t, 1, len(holder.Elements()))
 

@@ -109,7 +109,6 @@ func TestSingleFactoryBean(t *testing.T) {
 		&factoryBeanExample{testing: t},
 	)
 	require.NoError(t, err)
-
 	defer ctx.Close()
 
 	b := ctx.Bean(beanConstructedClass)
@@ -117,7 +116,7 @@ func TestSingleFactoryBean(t *testing.T) {
 
 	require.NotNil(t, b[0])
 
-	b[0].(*beanConstructed).Run()
+	b[0].Object().(*beanConstructed).Run()
 }
 
 func TestRepeatedFactoryBean(t *testing.T) {
@@ -149,7 +148,6 @@ func TestFactoryBean(t *testing.T) {
 		&someService{testing: t},
 	)
 	require.NoError(t, err)
-
 	defer ctx.Close()
 
 	require.NotNil(t, app.BeanConstructed)
@@ -237,12 +235,11 @@ func TestFactoryInterfaceBean(t *testing.T) {
 		}{},
 	)
 	require.NoError(t, err)
-
 	defer ctx.Close()
 
 	bc := ctx.Bean(BeanConstructedClass)
 	require.Equal(t, 1, len(bc))
 
-	err = bc[0].(BeanConstructed).Run()
+	err = bc[0].Object().(BeanConstructed).Run()
 	require.NoError(t, err)
 }

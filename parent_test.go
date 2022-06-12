@@ -70,12 +70,12 @@ func TestParent(t *testing.T) {
 	b := service.Bean(serviceBeanClass)
 	require.Equal(t, 1, len(b))
 
-	b[0].(*serviceBean).Run()
+	b[0].Object().(*serviceBean).Run()
 
 	b = service.Bean(coreBeanClass)
 	require.Equal(t, 1, len(b))
 
-	cnt := b[0].(*coreBean).count
+	cnt := b[0].Object().(*coreBean).count
 	require.Equal(t, 3, cnt)
 
 }
@@ -97,11 +97,10 @@ func TestParentDestroy(t *testing.T) {
 	)
 
 	require.NoError(t, err)
+	// defer parent.Close() for the purpose of test
 
 	child, err := parent.Extend()
-
 	require.NoError(t, err)
-
 	child.Close()
 
 }
