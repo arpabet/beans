@@ -189,6 +189,10 @@ func (t *factory) ObjectType() reflect.Type {
 	return beanConstructedClass
 }
 
+func (t *factory) ObjectName() string {
+	return "qualifierBeanName" // could be empty string
+}
+
 func (t *factory) Singleton() bool {
 	return true
 }
