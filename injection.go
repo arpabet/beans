@@ -150,17 +150,17 @@ func (t *injection) inject(list []*bean) error {
 					&factoryDependency{
 						factory: instance.beenFactory,
 						injection: func(service *bean) error {
-							if visited[instance.name] {
-								return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class)
+							if visited[service.name] {
+								return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v' by injecting factory bean '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class, service.obj)
 							}
-							visited[instance.name] = true
-							field.SetMapIndex(reflect.ValueOf(instance.name), instance.valuePtr)
+							visited[service.name] = true
+							field.SetMapIndex(reflect.ValueOf(service.name), service.valuePtr)
 							return nil
 						},
 					})
 			} else {
 				if visited[instance.name] {
-					return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class)
+					return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v' by injecting instance '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class, instance.obj)
 				}
 				visited[instance.name] = true
 				field.SetMapIndex(reflect.ValueOf(instance.name), instance.valuePtr)
