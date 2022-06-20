@@ -57,6 +57,11 @@ type bean struct {
 	name string
 
 	/**
+	Qualifier of the bean
+	 */
+	qualifier string
+
+	/**
 	Order of the bean
 	*/
 	ordered bool
@@ -110,7 +115,14 @@ type bean struct {
 
 func (t *bean) String() string {
 	if t.beenFactory != nil {
-		return fmt.Sprintf("<FactoryBean %s->%s>", t.beenFactory.factoryClassPtr, t.beanDef.classPtr)
+		objectName := t.beenFactory.factoryBean.ObjectName()
+		if objectName != "" {
+			return fmt.Sprintf("<FactoryBean %s->%s(%s)>", t.beenFactory.factoryClassPtr, t.beanDef.classPtr, objectName)
+		} else {
+			return fmt.Sprintf("<FactoryBean %s->%s>", t.beenFactory.factoryClassPtr, t.beanDef.classPtr)
+		}
+	} else if t.qualifier != "" {
+		return fmt.Sprintf("<Bean %s(%s)>", t.beanDef.classPtr, t.qualifier)
 	} else {
 		return fmt.Sprintf("<Bean %s>", t.beanDef.classPtr)
 	}
@@ -409,8 +421,10 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 		}
 	}
 	name := classPtr.String()
+	var qualifier string
 	if namedBean, ok := obj.(NamedBean); ok {
 		name = namedBean.BeanName()
+		qualifier = name
 	}
 	ordered := false
 	var order int
@@ -420,6 +434,7 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 	}
 	return &bean{
 		name:     name,
+		qualifier: qualifier,
 		ordered:  ordered,
 		order:    order,
 		obj:      obj,

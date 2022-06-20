@@ -305,5 +305,9 @@ func (t *injection) String() string {
 }
 
 func (t *injectionDef) String() string {
-	return fmt.Sprintf(" %v->%s ", t.class, t.fieldName)
+	if t.qualifier != "" {
+		return fmt.Sprintf(" %v->%s(%s) ", t.class, t.fieldName, t.qualifier)
+	} else {
+		return fmt.Sprintf(" %v->%s ", t.class, t.fieldName)
+	}
 }
