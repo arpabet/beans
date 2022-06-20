@@ -147,9 +147,14 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 					} else {
 						info = "non-singleton"
 					}
-					fmt.Printf("FactoryBean %v produce %s %v\n", classPtr, info, elemClassPtr)
+					objectName := factoryBean.ObjectName()
+					if objectName != "" {
+						fmt.Printf("FactoryBean %v produce %s %v with name '%s'\n", classPtr, info, elemClassPtr, objectName)
+					} else {
+						fmt.Printf("FactoryBean %v produce %s %v\n", classPtr, info, elemClassPtr)
+					}
 				} else {
-					fmt.Printf("Bean %v\n", classPtr)
+					fmt.Printf("Bean %v with name '%s'\n", classPtr, objBean.name)
 				}
 			}
 
