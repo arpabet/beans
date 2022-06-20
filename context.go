@@ -154,7 +154,11 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 						fmt.Printf("FactoryBean %v produce %s %v\n", classPtr, info, elemClassPtr)
 					}
 				} else {
-					fmt.Printf("Bean %v with name '%s'\n", classPtr, objBean.name)
+					if classPtr.Name() != objBean.name {
+						fmt.Printf("Bean %v with name '%s'\n", classPtr, objBean.name)
+					} else {
+						fmt.Printf("Bean %v\n", classPtr)
+					}
 				}
 			}
 
