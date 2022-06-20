@@ -213,6 +213,11 @@ type FactoryBean interface {
 	ObjectType() reflect.Type
 
 	/**
+	returns the bean name of object that this FactoryBean produces or empty string if name not defined
+	*/
+	ObjectName() string
+
+	/**
 	denotes if the object produced by this FactoryBean is a singleton
 	*/
 	Singleton() bool

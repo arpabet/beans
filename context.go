@@ -193,8 +193,12 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 					factoryClassPtr: classPtr,
 					factoryBean:     factoryBean,
 				}
+				objectName := factoryBean.ObjectName()
+				if objectName == "" {
+					objectName = elemClassPtr.String()
+				}
 				elemBean := &bean{
-					name:        elemClassPtr.String(),
+					name:        objectName,
 					beenFactory: f,
 					beanDef: &beanDef{
 						classPtr: elemClassPtr,

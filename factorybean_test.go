@@ -79,6 +79,10 @@ func (t *factoryBeanExample) ObjectType() reflect.Type {
 	return beanConstructedClass
 }
 
+func (t *factoryBeanExample) ObjectName() string {
+	return ""
+}
+
 func (t *factoryBeanExample) Singleton() bool {
 	return true
 }
@@ -98,6 +102,10 @@ func (t *repeatedFactoryBeanExample) Object() (interface{}, error) {
 
 func (t *repeatedFactoryBeanExample) ObjectType() reflect.Type {
 	return beanConstructedClass
+}
+
+func (t *repeatedFactoryBeanExample) ObjectName() string {
+	return ""
 }
 
 func (t *repeatedFactoryBeanExample) Singleton() bool {
@@ -223,6 +231,10 @@ func (t *factoryBeanImpl) ObjectType() reflect.Type {
 	return BeanConstructedClass
 }
 
+func (t *factoryBeanImpl) ObjectName() string {
+	return "beanFromFactory"
+}
+
 func (t *factoryBeanImpl) Singleton() bool {
 	return true
 }
@@ -235,7 +247,7 @@ func TestFactoryInterfaceBean(t *testing.T) {
 		&factoryBeanImpl{testing: t},
 		&someServiceImpl{testing: t},
 		&struct {
-			BeanConstructed BeanConstructed `inject`
+			BeanConstructed BeanConstructed `inject:"bean=beanFromFactory"`
 		}{},
 	)
 	require.NoError(t, err)

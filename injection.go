@@ -101,7 +101,11 @@ func (t *injection) inject(list []*bean) error {
 
 	if len(list) == 0 {
 		if !t.injectionDef.optional {
-			return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v'", t.injectionDef.fieldName, t.injectionDef.class)
+			if t.injectionDef.qualifier != "" {
+				return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v' with qualifier '%s'", t.injectionDef.fieldName, t.injectionDef.class, t.injectionDef.qualifier)
+			} else {
+				return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v'", t.injectionDef.fieldName, t.injectionDef.class)
+			}
 		}
 		return nil
 	}
@@ -212,7 +216,11 @@ func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
 
 	if len(list) == 0 {
 		if !t.optional {
-			return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v'", t.fieldName, t.class)
+			if t.qualifier != "" {
+				return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v' with qualifier '%s'", t.fieldName, t.class, t.qualifier)
+			} else {
+				return errors.Errorf("can not find candidates to inject the required field '%s' in class '%v'", t.fieldName, t.class)
+			}
 		}
 		return nil
 	}

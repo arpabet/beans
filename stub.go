@@ -91,6 +91,10 @@ func (t *factoryBeanStub) ObjectType() reflect.Type {
 	return t.elemType
 }
 
+func (t *factoryBeanStub) ObjectName() string {
+	return ""
+}
+
 func (t *factoryBeanStub) Singleton() bool {
 	return true
 }
