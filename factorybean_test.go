@@ -232,7 +232,7 @@ func (t *factoryBeanImpl) ObjectType() reflect.Type {
 }
 
 func (t *factoryBeanImpl) ObjectName() string {
-	return "beanFromFactory"
+	return "beanConstructed"
 }
 
 func (t *factoryBeanImpl) Singleton() bool {
@@ -247,7 +247,7 @@ func TestFactoryInterfaceBean(t *testing.T) {
 		&factoryBeanImpl{testing: t},
 		&someServiceImpl{testing: t},
 		&struct {
-			BeanConstructed BeanConstructed `inject:"bean=beanFromFactory"`
+			BeanConstructed BeanConstructed `inject:"bean=beanConstructed"`
 		}{},
 	)
 	require.NoError(t, err)
