@@ -583,7 +583,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		if err != nil {
 			return errors.Errorf("factory ctor '%v' failed, %v", factoryDep.factory.factoryClassPtr, err)
 		}
-		if created && bean != factoryDep.factory.bean {
+		if created {
 			if Verbose {
 				fmt.Printf("%sDep Created Bean %s with type '%v'\n", indent(len(stack)+1), bean.name, bean.beanDef.classPtr)
 			}

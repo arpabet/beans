@@ -275,9 +275,11 @@ func (t *factory) String() string {
 
 func (t *factory) ctor() (*bean, bool, error) {
 	var b *bean
+	var singleton bool
 	if t.factoryBean.Singleton() {
 		if t.instances.head.obj == nil {
 			b = t.instances.head
+			singleton = true
 		} else {
 			return t.instances.head, false, nil
 		}
@@ -307,7 +309,7 @@ func (t *factory) ctor() (*bean, bool, error) {
 	}
 	b.valuePtr = reflect.ValueOf(obj)
 
-	return b, true, nil
+	return b, !singleton, nil
 }
 
 type factoryDependency struct {
