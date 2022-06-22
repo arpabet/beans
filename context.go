@@ -32,8 +32,13 @@ import (
 	"sync"
 )
 
+/**
+Extended logs printed in console if enabled
+
+Only for testing purposes.
+ */
+
 var Verbose bool
-var Recover bool
 
 type context struct {
 
@@ -111,17 +116,15 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 	core[ctxBean.beanDef.classPtr] = oneBean(ctxBean)
 
 	// scan
-	err := forEach("", scan, func(pos string, obj interface{}) error {
+	err := forEach("", scan, func(pos string, obj interface{}) (err error) {
 
 		classPtr := reflect.TypeOf(obj)
 
-		if Recover {
-			defer func() {
-				if r := recover(); r != nil {
-					fmt.Printf("Recover from object '%s' scan error %v\n", classPtr.String(), r)
-				}
-			}()
-		}
+		defer func() {
+			if r := recover(); r != nil {
+				err = errors.Errorf("recover from object scan '%s' on error %v\n", classPtr.String(), r)
+			}
+		}()
 
 		switch classPtr.Kind() {
 		case reflect.Ptr:
@@ -185,7 +188,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 						}
 						var attrs string
 						if len(attr) > 0 {
-							attrs = strings.Join(attr, ",")
+							attrs = fmt.Sprintf("[%s]", strings.Join(attr, ","))
 						}
 						var prefix string
 						if injectDef.slice {
@@ -623,7 +626,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 
 	if hasConstructor {
 		if Verbose {
-			fmt.Printf("%sPostConstruct %v\n", indent(len(stack)), bean.beanDef.classPtr)
+			fmt.Printf("%sPostConstruct Bean '%s' with type '%v'\n", indent(len(stack)), bean.name, bean.beanDef.classPtr)
 		}
 		if err := initializer.PostConstruct(); err != nil {
 			return errors.Errorf("post construct failed %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
@@ -641,9 +644,16 @@ func (t *context) addDisposable(bean *bean) {
 	}
 }
 
-func (t *context) postConstruct() error {
+func (t *context) postConstruct() (err error) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.Errorf("post construct recover on error, %v\n", r)
+		}
+	}()
+
 	for _, list := range t.core {
-		if err := t.constructBeanList(list, nil); err != nil {
+		if err = t.constructBeanList(list, nil); err != nil {
 			return err
 		}
 	}
