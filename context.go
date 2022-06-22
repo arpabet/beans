@@ -518,7 +518,7 @@ func indent(n int) string {
 	}
 	var out []byte
 	for i := 0; i < n; i++ {
-		out = append(out, '\t')
+		out = append(out, ' ', ' ')
 	}
 	return string(out)
 }
@@ -579,7 +579,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		}
 	}
 
-	_, isFactoryBean := bean.obj.(FactoryBean)
+	isFactoryBean := bean.beenFactory != nil
 	initializer, hasConstructor := bean.obj.(InitializingBean)
 
 	if isFactoryBean || hasConstructor {
