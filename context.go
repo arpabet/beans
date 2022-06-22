@@ -579,6 +579,17 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		}
 	}
 
+	_, isFactoryBean := bean.obj.(FactoryBean)
+	initializer, hasConstructor := bean.obj.(InitializingBean)
+
+	if isFactoryBean || hasConstructor {
+		for _, dep := range bean.dependencies {
+			if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
+				return err
+			}
+		}
+	}
+
 	if bean.beenFactory != nil && bean.obj == nil {
 		if err := t.constructBean(bean.beenFactory.bean, append(stack, bean)); err != nil {
 			return err
@@ -591,17 +602,6 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 			return errors.Errorf("bean '%v' was not created by factory ctor '%v'", bean, bean.beenFactory.factoryClassPtr)
 		}
 		return nil
-	}
-
-	_, isFactoryBean := bean.obj.(FactoryBean)
-	initializer, hasConstructor := bean.obj.(InitializingBean)
-
-	if isFactoryBean || hasConstructor {
-		for _, dep := range bean.dependencies {
-			if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
-				return err
-			}
-		}
 	}
 
 	if hasConstructor {
