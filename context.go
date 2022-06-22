@@ -535,6 +535,9 @@ func (t *context) constructBean(bean *bean, stack []*bean) error {
 		if err := t.constructBean(bean.beenFactory.bean, append(stack, bean)); err != nil {
 			return err
 		}
+		if Verbose {
+			fmt.Printf("FactoryBeanConstruct '%v' for bean '%s' with type '%v'\n", bean.beenFactory.factoryClassPtr, bean.name, bean.beanDef.classPtr)
+		}
 		_, _, err := bean.beenFactory.ctor()
 		if err != nil {
 			return errors.Errorf("factory ctor '%v' failed, %v", bean.beenFactory.factoryClassPtr, err)
@@ -574,6 +577,9 @@ func (t *context) constructBean(bean *bean, stack []*bean) error {
 	}
 
 	if hasConstructor {
+		if Verbose {
+			fmt.Printf("PostConstruct bean '%s' with type '%v'\n", bean.name, bean.beanDef.classPtr)
+		}
 		if err := initializer.PostConstruct(); err != nil {
 			return errors.Errorf("post construct failed %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
 		}
