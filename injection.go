@@ -88,7 +88,6 @@ type injection struct {
 
 /**
 Inject value in to the field by using reflection
-Returns beanlist of used beans in this injection
 */
 func (t *injection) inject(list []*bean) error {
 
@@ -114,11 +113,17 @@ func (t *injection) inject(list []*bean) error {
 
 		newSlice := field
 		var factoryList []*bean
-		for _, instance := range list {
-			if instance.beenFactory != nil {
-				factoryList = append(factoryList, instance)
+		for _, impl := range list {
+			if impl.beenFactory != nil {
+				factoryList = append(factoryList, impl)
 			} else {
-				newSlice = reflect.Append(newSlice, instance.valuePtr)
+				newSlice = reflect.Append(newSlice, impl.valuePtr)
+
+				// register dependency that 'inject.bean' is using if it is not lazy
+				if !t.injectionDef.lazy {
+					t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
+				}
+
 			}
 		}
 		field.Set(newSlice)
@@ -143,15 +148,15 @@ func (t *injection) inject(list []*bean) error {
 		field.Set(reflect.MakeMap(field.Type()))
 
 		visited := make(map[string]bool)
-		for _, instance := range list {
-			if instance.beenFactory != nil {
+		for _, impl := range list {
+			if impl.beenFactory != nil {
 				// register factory dependency for 'inject.bean' that is using 'factory'
 				t.bean.factoryDependencies = append(t.bean.factoryDependencies,
 					&factoryDependency{
-						factory: instance.beenFactory,
+						factory: impl.beenFactory,
 						injection: func(service *bean) error {
 							if visited[service.name] {
-								return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v' by injecting factory bean '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class, service.obj)
+								return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v' by injecting factory bean '%v'", impl.name, t.injectionDef.fieldName, t.injectionDef.class, service.obj)
 							}
 							visited[service.name] = true
 							field.SetMapIndex(reflect.ValueOf(service.name), service.valuePtr)
@@ -159,11 +164,16 @@ func (t *injection) inject(list []*bean) error {
 						},
 					})
 			} else {
-				if visited[instance.name] {
-					return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v' by injecting instance '%v'", instance.name, t.injectionDef.fieldName, t.injectionDef.class, instance.obj)
+				if visited[impl.name] {
+					return errors.Errorf("can not inject duplicates '%s' to the map field '%s' in class '%v' by injecting impl '%v'", impl.name, t.injectionDef.fieldName, t.injectionDef.class, impl.obj)
 				}
-				visited[instance.name] = true
-				field.SetMapIndex(reflect.ValueOf(instance.name), instance.valuePtr)
+				visited[impl.name] = true
+				field.SetMapIndex(reflect.ValueOf(impl.name), impl.valuePtr)
+
+				// register dependency that 'inject.bean' is using if it is not lazy
+				if !t.injectionDef.lazy {
+					t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
+				}
 			}
 		}
 

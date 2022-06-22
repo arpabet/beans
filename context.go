@@ -173,11 +173,28 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 				value := objBean.valuePtr.Elem()
 				for _, injectDef := range objBean.beanDef.fields {
 					if Verbose {
-						var lazy string
+						var attr []string
 						if injectDef.lazy {
-							lazy = "lazy"
+							attr = append(attr,  "lazy")
 						}
-						fmt.Printf("	Field %v %s\n", injectDef.fieldType, lazy)
+						if injectDef.optional {
+							attr = append(attr,  "optional")
+						}
+						if injectDef.qualifier != "" {
+							attr = append(attr,  "bean=" + injectDef.qualifier)
+						}
+						var attrs string
+						if len(attr) > 0 {
+							attrs = strings.Join(attr, ",")
+						}
+						var prefix string
+						if injectDef.slice {
+							prefix = "[]"
+						}
+						if injectDef.table {
+							prefix = "map[string]"
+						}
+						fmt.Printf("	Field %s%v %s\n", prefix, injectDef.fieldType, attrs)
 					}
 					switch injectDef.fieldType.Kind() {
 					case reflect.Ptr:
@@ -552,7 +569,6 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 	bean.lifecycle = BeanConstructing
 	bean.ctorMu.Lock()
 	defer func() {
-		bean.lifecycle = BeanInitialized
 		bean.ctorMu.Unlock()
 	}()
 
@@ -587,6 +603,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		}
 	}
 
+	// check if it is empty element bean
 	if bean.beenFactory != nil && bean.obj == nil {
 		if err := t.constructBean(bean.beenFactory.bean, append(stack, bean)); err != nil {
 			return err
@@ -614,6 +631,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 	}
 
 	t.addDisposable(bean)
+	bean.lifecycle = BeanInitialized
 	return nil
 }
 
