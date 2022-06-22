@@ -429,10 +429,8 @@ func (t *context) Core() []reflect.Type {
 
 func (t *context) Bean(typ reflect.Type) []Bean {
 	var beanList []Bean
-	if list, ok := t.getBean(typ); ok {
-		for _, b := range list {
-			beanList = append(beanList, b)
-		}
+	for _, b := range t.getBean(typ) {
+		beanList = append(beanList, b)
 	}
 	return beanList
 }
@@ -455,7 +453,8 @@ func (t *context) Inject(obj interface{}) error {
 		return err
 	} else {
 		for _, inject := range bd.fields {
-			if impl, ok := t.getBean(inject.fieldType); ok {
+			impl := t.getBean(inject.fieldType)
+			if len(impl) > 0 {
 				if err := inject.inject(&value, impl); err != nil {
 					return err
 				}
@@ -468,20 +467,22 @@ func (t *context) Inject(obj interface{}) error {
 }
 
 // multi-threading safe
-func (t *context) getBean(ifaceType reflect.Type) ([]*bean, bool) {
+func (t *context) getBean(ifaceType reflect.Type) []*bean {
 	if b, ok := t.registry.findByType(ifaceType); ok {
-		return b, true
+		return b
 	} else if b, ok := t.core[ifaceType]; ok {
 		// pointer match with core
 		t.registry.addBeanList(ifaceType, b)
-		return b.list(), true
-	} else {
+		return b.list()
+	} else if ifaceType.Kind() == reflect.Interface {
 		b, err := searchByInterface(ifaceType, t.core)
 		if err != nil {
-			return nil, false
+			return nil
 		}
 		t.registry.addBeanList(ifaceType, b)
-		return b.list(), true
+		return b.list()
+	} else {
+		return nil
 	}
 }
 

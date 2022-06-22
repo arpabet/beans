@@ -79,6 +79,21 @@ func TestMultipleBeanByPointer(t *testing.T) {
 
 }
 
+func TestSearchBeanByPointerNotFound(t *testing.T) {
+
+	beans.Verbose = true
+
+	ctx, err := beans.Create(
+		&firstBean{},
+	)
+	require.NoError(t, err)
+	defer ctx.Close()
+
+	second := ctx.Bean(SecondBeanClass)
+	require.Equal(t, 0, len(second))
+
+}
+
 func TestBeanByStruct(t *testing.T) {
 
 	beans.Verbose = true
