@@ -604,7 +604,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 
 	if hasConstructor {
 		if Verbose {
-			fmt.Printf("%This Bean.PostConstruct %v\n", indent(len(stack)+1), bean.beanDef.classPtr)
+			fmt.Printf("%sThis Bean.PostConstruct %v\n", indent(len(stack)+1), bean.beanDef.classPtr)
 		}
 		if err := initializer.PostConstruct(); err != nil {
 			return errors.Errorf("post construct failed %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
