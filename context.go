@@ -512,7 +512,14 @@ func (t *context) constructBeanList(list *beanlist, stack []*bean) error {
 	return nil
 }
 
-func (t *context) constructBean(bean *bean, stack []*bean) error {
+func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.Errorf("bean construction '%s' with type '%v' was recovered with error: %v", bean.name, bean.beanDef.classPtr, r)
+		}
+	}()
+
 	if bean.lifecycle == BeanInitialized {
 		return nil
 	}
@@ -605,24 +612,48 @@ func (t *context) postConstruct() error {
 }
 
 // destroy in reverse initialization order
-func (t *context) Close() error {
-	var err []error
+func (t *context) Close() (err error) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.Errorf("context close recover error: %v", r)
+		}
+	}()
+
+	var listErr []error
 	t.destroyOnce.Do(func() {
 		n := len(t.disposables)
 		for j := n - 1; j >= 0; j-- {
-			if t.disposables[j].lifecycle == BeanInitialized {
-				t.disposables[j].lifecycle = BeanDestroying
-				if dis, ok := t.disposables[j].obj.(DisposableBean); ok {
-					if e := dis.Destroy(); e != nil {
-						err = append(err, e)
-					} else {
-						t.disposables[j].lifecycle = BeanDestroyed
-					}
-				}
-			}
+			t.destroyBean(t.disposables[j])
 		}
 	})
-	return multipleErr(err)
+	return multipleErr(listErr)
+}
+
+func (t *context) destroyBean(b *bean) (err error) {
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.Errorf("destroy bean '%s' with type '%v' recovered with error: %v", b.name, b.beanDef.classPtr, r)
+		}
+	}()
+
+	if b.lifecycle != BeanInitialized {
+		return nil
+	}
+
+	b.lifecycle = BeanDestroying
+	if Verbose {
+		fmt.Printf("Destroy bean '%s' with type '%v'\n", b.name, b.beanDef.classPtr)
+	}
+	if dis, ok := b.obj.(DisposableBean); ok {
+		if e := dis.Destroy(); e != nil {
+			err = e
+		} else {
+			b.lifecycle = BeanDestroyed
+		}
+	}
+	return
 }
 
 func multipleErr(err []error) error {
