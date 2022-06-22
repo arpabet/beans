@@ -535,8 +535,10 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		return nil
 	}
 
+	_, isFactoryBean := bean.obj.(FactoryBean)
+	initializer, hasConstructor := bean.obj.(InitializingBean)
 	if Verbose {
-		fmt.Printf("%sConstruct Bean '%s' with type '%v', hasFactory=%v, hasObject=%v\n", indent(len(stack)), bean.name, bean.beanDef.classPtr, bean.beenFactory != nil, bean.obj != nil)
+		fmt.Printf("%sConstruct Bean '%s' with type '%v', isFactoryBean=%v, hasFactory=%v, hasObject=%v, hasConstructor=%v\n", indent(len(stack)), bean.name, bean.beanDef.classPtr, isFactoryBean, bean.beenFactory != nil, bean.obj != nil, hasConstructor)
 	}
 
 	if bean.lifecycle == BeanConstructing {
@@ -559,13 +561,16 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 			return err
 		}
 		if Verbose {
-			fmt.Printf("%sDep FactoryBean.Object %v\n", indent(len(stack)+1), factoryDep.factory.factoryClassPtr)
+			fmt.Printf("%sFactoryDep (%v).Object()\n", indent(len(stack)+1), factoryDep.factory.factoryClassPtr)
 		}
 		bean, created, err := factoryDep.factory.ctor()
 		if err != nil {
 			return errors.Errorf("factory ctor '%v' failed, %v", factoryDep.factory.factoryClassPtr, err)
 		}
 		if created {
+			if Verbose {
+				fmt.Printf("%sDep Created Bean %s with type '%v'\n", indent(len(stack)+1), bean.name, bean.beanDef.classPtr)
+			}
 			t.registry.addBeanByName(bean)
 		}
 		err = factoryDep.injection(bean)
@@ -573,9 +578,6 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 			return errors.Errorf("factory injection '%v' failed, %v", factoryDep.factory.factoryClassPtr, err)
 		}
 	}
-
-	_, isFactoryBean := bean.obj.(FactoryBean)
-	initializer, hasConstructor := bean.obj.(InitializingBean)
 
 	if isFactoryBean || hasConstructor {
 		for _, dep := range bean.dependencies {
@@ -590,7 +592,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 			return err
 		}
 		if Verbose {
-			fmt.Printf("%sOwn FactoryBean.Object %v\n", indent(len(stack)+1), bean.beenFactory.factoryClassPtr)
+			fmt.Printf("%s(%v).Object()\n", indent(len(stack)), bean.beenFactory.factoryClassPtr)
 		}
 		_, _, err := bean.beenFactory.ctor()
 		if err != nil {
@@ -604,7 +606,7 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 
 	if hasConstructor {
 		if Verbose {
-			fmt.Printf("%sThis Bean.PostConstruct %v\n", indent(len(stack)+1), bean.beanDef.classPtr)
+			fmt.Printf("%sPostConstruct %v\n", indent(len(stack)), bean.beanDef.classPtr)
 		}
 		if err := initializer.PostConstruct(); err != nil {
 			return errors.Errorf("post construct failed %s, %v", getStackInfo(reverseStack(append(stack, bean)), " required by "), err)
