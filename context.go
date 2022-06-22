@@ -538,23 +538,6 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		bean.ctorMu.Unlock()
 	}()
 
-	if bean.beenFactory != nil && bean.obj == nil {
-		if err := t.constructBean(bean.beenFactory.bean, append(stack, bean)); err != nil {
-			return err
-		}
-		if Verbose {
-			fmt.Printf("FactoryBeanConstruct '%v' for bean '%s' with type '%v'\n", bean.beenFactory.factoryClassPtr, bean.name, bean.beanDef.classPtr)
-		}
-		_, _, err := bean.beenFactory.ctor()
-		if err != nil {
-			return errors.Errorf("factory ctor '%v' failed, %v", bean.beenFactory.factoryClassPtr, err)
-		}
-		if bean.obj == nil {
-			return errors.Errorf("bean '%v' was not created by factory ctor '%v'", bean, bean.beenFactory.factoryClassPtr)
-		}
-		return nil
-	}
-
 	for _, factoryDep := range bean.factoryDependencies {
 		if err := t.constructBean(factoryDep.factory.bean, append(stack, bean)); err != nil {
 			return err
@@ -570,6 +553,23 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		if err != nil {
 			return errors.Errorf("factory injection '%v' failed, %v", factoryDep.factory.factoryClassPtr, err)
 		}
+	}
+
+	if bean.beenFactory != nil && bean.obj == nil {
+		if err := t.constructBean(bean.beenFactory.bean, append(stack, bean)); err != nil {
+			return err
+		}
+		if Verbose {
+			fmt.Printf("FactoryBeanConstruct '%v' for bean '%s' with type '%v'\n", bean.beenFactory.factoryClassPtr, bean.name, bean.beanDef.classPtr)
+		}
+		_, _, err := bean.beenFactory.ctor()
+		if err != nil {
+			return errors.Errorf("factory ctor '%v' failed, %v", bean.beenFactory.factoryClassPtr, err)
+		}
+		if bean.obj == nil {
+			return errors.Errorf("bean '%v' was not created by factory ctor '%v'", bean, bean.beenFactory.factoryClassPtr)
+		}
+		return nil
 	}
 
 	_, isFactoryBean := bean.obj.(FactoryBean)
