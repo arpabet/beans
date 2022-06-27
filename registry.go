@@ -27,6 +27,10 @@ import (
 	"sync"
 )
 
+/**
+	Holds runtime information about all beans visible from current context including all parents.
+ */
+
 type registry struct {
 	sync.RWMutex
 	beansByName map[string][]*bean
@@ -59,14 +63,10 @@ func (t *registry) addBeanList(ifaceType reflect.Type, list []*bean) {
 	}
 }
 
-func (t *registry) addBeanByType(ifaceType reflect.Type, b *bean) {
+func (t *registry) addBean(ifaceType reflect.Type, b *bean) {
 	t.Lock()
 	defer t.Unlock()
 	t.beansByType[ifaceType] = append(t.beansByType[ifaceType], b)
-}
-
-func (t *registry) addBeanByName(b *bean) {
-	t.Lock()
-	defer t.Unlock()
 	t.beansByName[b.name] = append(t.beansByName[b.name], b)
 }
+
