@@ -275,7 +275,8 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 	// direct match
 	for requiredType, injects := range pointers {
 
-		if direct, ok := ctx.findDirectRecursive(requiredType); ok {
+		direct := ctx.findDirectRecursive(requiredType)
+		if len(direct) > 0 {
 
 			ctx.registry.addBeanList(requiredType, direct)
 
@@ -370,14 +371,15 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 
 }
 
-func (t *context) findDirectRecursive(requiredType reflect.Type) ([]*bean, bool) {
-	if direct, ok := t.core[requiredType]; ok {
-		return direct, ok
-	} else if t.parent != nil {
-		return t.parent.findDirectRecursive(requiredType)
-	} else {
-		return nil, false
+
+func (t *context) findDirectRecursive(requiredType reflect.Type) []*bean {
+	var candidates []*bean
+	for ctx := t; ctx != nil; ctx = ctx.parent {
+		if direct, ok := ctx.core[requiredType]; ok {
+			candidates = append(candidates, direct...)
+		}
 	}
+	return candidates
 }
 
 func registerBean(registry map[reflect.Type][]*bean, classPtr reflect.Type, bean *bean) {

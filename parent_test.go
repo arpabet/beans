@@ -26,26 +26,41 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.arpabet.com/beans"
 	"reflect"
-	"sort"
 	"testing"
 )
 
 type Component interface {
+	beans.OrderedBean
 	Information() string
 }
 
 type implComponent struct {
 	value string
+	order int
 }
 
 func (t *implComponent) Information() string {
 	return t.value
 }
 
+func (t *implComponent) BeanOrder() int {
+	return t.order
+}
+
+type implElement struct {
+	value string
+	order int
+}
+
+func (t *implElement) BeanOrder() int {
+	return t.order
+}
+
 var coreBeanClass = reflect.TypeOf((*coreBean)(nil)) // *serviceBean
 type coreBean struct {
 	count int
 	Components    []Component   `inject:"optional"`
+	Elements      []*implElement   `inject:"optional"`
 }
 
 func (t *coreBean) Inc() int {
@@ -57,6 +72,7 @@ var serviceBeanClass = reflect.TypeOf((*serviceBean)(nil)) // *serviceBean
 type serviceBean struct {
 	Core    *coreBean `inject`
 	Components    []Component   `inject:"optional"`
+	Elements      []*implElement   `inject:"optional"`
 	testing *testing.T
 }
 
@@ -129,7 +145,8 @@ func TestParentCollection(t *testing.T) {
 	coreBean := &coreBean{}
 	parent, err := beans.Create(
 		coreBean,
-		&implComponent{value:"fromParent"},
+		&implComponent{value:"fromParent", order: 1},
+		&implElement{value: "parent", order: 2},
 	)
 	require.NoError(t, err)
 	defer parent.Close()
@@ -140,18 +157,19 @@ func TestParentCollection(t *testing.T) {
 	serviceBean := &serviceBean{testing: t}
 	service, err := parent.Extend(
 		serviceBean,
-		&implComponent{value:"fromChild"},
+		&implComponent{value:"fromChild", order: 2},
+		&implElement{value: "child", order: 1},
 	)
 	require.NoError(t, err)
 	defer service.Close()
 
-	require.Equal(t, 1, len(serviceBean.Components))
+	require.Equal(t, 2, len(serviceBean.Elements))
+	require.Equal(t, "child", serviceBean.Elements[0].value)
+	require.Equal(t, "parent", serviceBean.Elements[1].value)
 
-	sort.Slice(serviceBean.Components, func(i, j int) bool {
-		return serviceBean.Components[i].Information() < serviceBean.Components[j].Information()
-	})
+	//require.Equal(t, 2, len(serviceBean.Components))
 
-	require.Equal(t, "fromChild", serviceBean.Components[0].Information())
+	//require.Equal(t, "fromChild", serviceBean.Components[0].Information())
 	//require.Equal(t, "fromParent", serviceBean.Components[1].Information())
 }
 
