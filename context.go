@@ -719,11 +719,14 @@ func multipleErr(err []error) error {
 var errNotFoundInterface = errors.New("not found")
 
 func (t *context) searchCandidatesRecursive(ifaceType reflect.Type) [][]*bean {
-	list := t.searchCandidates(ifaceType)
-	if len(list) == 0 && t.parent != nil {
-		return t.parent.searchCandidatesRecursive(ifaceType)
+	var candidates [][]*bean
+	for ctx := t; ctx != nil; ctx = ctx.parent {
+		list := ctx.searchCandidates(ifaceType)
+		if len(list) > 0 {
+			candidates = append(candidates, list...)
+		}
 	}
-	return list
+	return candidates
 }
 
 func (t *context) searchCandidates(ifaceType reflect.Type) [][]*bean {

@@ -167,9 +167,9 @@ func TestParentCollection(t *testing.T) {
 	require.Equal(t, "child", serviceBean.Elements[0].value)
 	require.Equal(t, "parent", serviceBean.Elements[1].value)
 
-	//require.Equal(t, 2, len(serviceBean.Components))
+	require.Equal(t, 2, len(serviceBean.Components))
 
-	//require.Equal(t, "fromChild", serviceBean.Components[0].Information())
-	//require.Equal(t, "fromParent", serviceBean.Components[1].Information())
+	require.Equal(t, "fromParent", serviceBean.Components[0].Information())
+	require.Equal(t, "fromChild", serviceBean.Components[1].Information())
 }
 
