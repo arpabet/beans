@@ -26,12 +26,26 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.arpabet.com/beans"
 	"reflect"
+	"sort"
 	"testing"
 )
+
+type Component interface {
+	Information() string
+}
+
+type implComponent struct {
+	value string
+}
+
+func (t *implComponent) Information() string {
+	return t.value
+}
 
 var coreBeanClass = reflect.TypeOf((*coreBean)(nil)) // *serviceBean
 type coreBean struct {
 	count int
+	Components    []Component   `inject:"optional"`
 }
 
 func (t *coreBean) Inc() int {
@@ -42,6 +56,7 @@ func (t *coreBean) Inc() int {
 var serviceBeanClass = reflect.TypeOf((*serviceBean)(nil)) // *serviceBean
 type serviceBean struct {
 	Core    *coreBean `inject`
+	Components    []Component   `inject:"optional"`
 	testing *testing.T
 }
 
@@ -108,3 +123,35 @@ func TestParentDestroy(t *testing.T) {
 	child.Close()
 
 }
+
+func TestParentCollection(t *testing.T) {
+
+	coreBean := &coreBean{}
+	parent, err := beans.Create(
+		coreBean,
+		&implComponent{value:"fromParent"},
+	)
+	require.NoError(t, err)
+	defer parent.Close()
+
+	require.Equal(t, 1, len(coreBean.Components))
+	require.Equal(t, "fromParent", coreBean.Components[0].Information())
+
+	serviceBean := &serviceBean{testing: t}
+	service, err := parent.Extend(
+		serviceBean,
+		&implComponent{value:"fromChild"},
+	)
+	require.NoError(t, err)
+	defer service.Close()
+
+	require.Equal(t, 2, len(serviceBean.Components))
+
+	sort.Slice(serviceBean.Components, func(i, j int) bool {
+		return serviceBean.Components[i].Information() < serviceBean.Components[j].Information()
+	})
+
+	require.Equal(t, "fromChild", serviceBean.Components[0].Information())
+	require.Equal(t, "fromParent", serviceBean.Components[1].Information())
+}
+
