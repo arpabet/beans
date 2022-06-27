@@ -50,13 +50,13 @@ func (t *registry) findByName(name string) []Bean {
 	return beanList
 }
 
-func (t *registry) addBeanList(ifaceType reflect.Type, list *beanlist) {
+func (t *registry) addBeanList(ifaceType reflect.Type, list []*bean) {
 	t.Lock()
 	defer t.Unlock()
-	list.forEach(func(b *bean) {
+	for _, b := range list {
 		t.beansByType[ifaceType] = append(t.beansByType[ifaceType], b)
 		t.beansByName[b.name] = append(t.beansByName[b.name], b)
-	})
+	}
 }
 
 func (t *registry) addBeanByType(ifaceType reflect.Type, b *bean) {

@@ -51,7 +51,7 @@ type context struct {
 		All instances scanned during creation of context.
 	    No modifications on runtime allowed.
 	*/
-	core map[reflect.Type]*beanlist
+	core map[reflect.Type][]*bean
 
 	/**
 	List of beans in initialization order that should depose on close
@@ -92,7 +92,7 @@ func (t *context) Parent() (Context, bool) {
 
 func createContext(parent *context, scan []interface{}) (Context, error) {
 
-	core := make(map[reflect.Type]*beanlist)
+	core := make(map[reflect.Type][]*bean)
 	pointers := make(map[reflect.Type][]*injection)
 	interfaces := make(map[reflect.Type][]*injection)
 
@@ -283,7 +283,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 				fmt.Printf("Inject '%v' by pointer '%+v' in to %+v\n", requiredType, direct, injects)
 			}
 
-			list := orderBeans(direct.list())
+			list := orderBeans(direct)
 			for _, inject := range injects {
 				if err := inject.inject(list); err != nil {
 					return nil, errors.Errorf("required type '%s' injection error, %v", requiredType, err)
@@ -370,7 +370,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 
 }
 
-func (t *context) findDirectRecursive(requiredType reflect.Type) (*beanlist, bool) {
+func (t *context) findDirectRecursive(requiredType reflect.Type) ([]*bean, bool) {
 	if direct, ok := t.core[requiredType]; ok {
 		return direct, ok
 	} else if t.parent != nil {
@@ -380,9 +380,9 @@ func (t *context) findDirectRecursive(requiredType reflect.Type) (*beanlist, boo
 	}
 }
 
-func registerBean(registry map[reflect.Type]*beanlist, classPtr reflect.Type, bean *bean) {
+func registerBean(registry map[reflect.Type][]*bean, classPtr reflect.Type, bean *bean) {
 	if list, ok := registry[classPtr]; ok {
-		list.append(bean)
+		registry[classPtr] = append(list, bean)
 	} else {
 		registry[classPtr] = oneBean(bean)
 	}
@@ -473,14 +473,14 @@ func (t *context) getBean(ifaceType reflect.Type) []*bean {
 	} else if b, ok := t.core[ifaceType]; ok {
 		// pointer match with core
 		t.registry.addBeanList(ifaceType, b)
-		return b.list()
+		return b
 	} else if ifaceType.Kind() == reflect.Interface {
 		b, err := searchByInterface(ifaceType, t.core)
 		if err != nil {
 			return nil
 		}
 		t.registry.addBeanList(ifaceType, b)
-		return b.list()
+		return b
 	} else {
 		return nil
 	}
@@ -521,13 +521,10 @@ func reverseStack(stack []*bean) []*bean {
 	return out
 }
 
-func (t *context) constructBeanList(list *beanlist, stack []*bean) error {
-	for bean := list.head; bean != nil; bean = bean.next {
+func (t *context) constructBeanList(list []*bean, stack []*bean) error {
+	for _, bean := range list {
 		if err := t.constructBean(bean, stack); err != nil {
 			return err
-		}
-		if bean == list.tail {
-			break
 		}
 	}
 	return nil
@@ -719,7 +716,7 @@ func multipleErr(err []error) error {
 
 var errNotFoundInterface = errors.New("not found")
 
-func (t *context) searchCandidatesRecursive(ifaceType reflect.Type) []*beanlist {
+func (t *context) searchCandidatesRecursive(ifaceType reflect.Type) [][]*bean {
 	list := t.searchCandidates(ifaceType)
 	if len(list) == 0 && t.parent != nil {
 		return t.parent.searchCandidatesRecursive(ifaceType)
@@ -727,20 +724,20 @@ func (t *context) searchCandidatesRecursive(ifaceType reflect.Type) []*beanlist 
 	return list
 }
 
-func (t *context) searchCandidates(ifaceType reflect.Type) []*beanlist {
-	var candidates []*beanlist
+func (t *context) searchCandidates(ifaceType reflect.Type) [][]*bean {
+	var candidates [][]*bean
 	for _, list := range t.core {
-		if list.head != nil && list.head.beanDef.implements(ifaceType) {
+		if len(list) > 0 && list[0].beanDef.implements(ifaceType) {
 			candidates = append(candidates, list)
 		}
 	}
 	return candidates
 }
 
-func flattenBeans(candidates []*beanlist) []*bean {
+func flattenBeans(candidates [][]*bean) []*bean {
 	var list []*bean
 	for _, candidate := range candidates {
-		list = append(list, candidate.list()...)
+		list = append(list, candidate...)
 	}
 	return list
 }
@@ -772,10 +769,10 @@ func orderBeans(candidates []*bean) []*bean {
 	}
 }
 
-func searchByInterface(ifaceType reflect.Type, core map[reflect.Type]*beanlist) (*beanlist, error) {
-	var candidates []*beanlist
+func searchByInterface(ifaceType reflect.Type, core map[reflect.Type][]*bean) ([]*bean, error) {
+	var candidates [][]*bean
 	for _, list := range core {
-		if list.head.beanDef.implements(ifaceType) {
+		if len(list) > 0 && list[0].beanDef.implements(ifaceType) {
 			candidates = append(candidates, list)
 		}
 	}

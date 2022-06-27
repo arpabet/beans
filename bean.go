@@ -95,7 +95,7 @@ type bean struct {
 	/**
 	List of beans that should initialize before current bean
 	*/
-	dependencies []*beanlist
+	dependencies [][]*bean
 
 	/**
 	List of factory beans that should initialize before current bean
@@ -111,6 +111,12 @@ type bean struct {
 	Constructor mutex for the bean
 	*/
 	ctorMu sync.Mutex
+}
+
+func oneBean(b *bean) []*bean {
+	list := make([]*bean, 1)
+	list[0] = b
+	return list
 }
 
 func (t *bean) String() string {
@@ -214,59 +220,7 @@ type factory struct {
 	/**
 	Created bean instances by this factory
 	*/
-	instances *beanlist
-}
-
-type beanlist struct {
-	head *bean
-	tail *bean
-}
-
-func oneBean(bean *bean) *beanlist {
-	return &beanlist{
-		head: bean,
-		tail: bean,
-	}
-}
-
-func (t *beanlist) append(bean *bean) {
-	if t.tail == nil {
-		t.head, t.tail = bean, bean
-	} else {
-		t.tail.next = bean
-		t.tail = bean
-	}
-}
-
-func (t *beanlist) single() bool {
-	return t.head == t.tail
-}
-
-func (t *beanlist) list() []*bean {
-	var list []*bean
-	for b := t.head; b != nil; b = b.next {
-		list = append(list, b)
-		if b == t.tail {
-			break
-		}
-	}
-	return list
-}
-
-func (t *beanlist) forEach(cb func(*bean)) {
-	for b := t.head; b != nil; b = b.next {
-		cb(b)
-		if b == t.tail {
-			break
-		}
-	}
-}
-
-func (t *beanlist) String() string {
-	if t.head != nil {
-		return t.head.String()
-	}
-	return ""
+	instances []*bean
 }
 
 func (t *factory) String() string {
@@ -276,24 +230,29 @@ func (t *factory) String() string {
 func (t *factory) ctor() (*bean, bool, error) {
 	var b *bean
 	var singleton bool
+
+	if len(t.instances) == 0 {
+		return nil, false, errors.Errorf("internal: element bean collection is empty for factory '%v'", t.factoryClassPtr)
+	}
+
 	if t.factoryBean.Singleton() {
-		if t.instances.head.obj == nil {
-			b = t.instances.head
+		if t.instances[0].obj == nil {
+			b = t.instances[0]
 			singleton = true
 		} else {
-			return t.instances.head, false, nil
+			return t.instances[0], false, nil
 		}
 	} else {
-		if t.instances.head.obj == nil {
-			b = t.instances.head
+		if t.instances[0].obj == nil {
+			b = t.instances[0]
 		} else {
+			// append next element, since it is not a singleton
 			b = &bean{
-				name:        t.instances.head.beanDef.classPtr.String(),
-				beenFactory: t.instances.head.beenFactory,
-				beanDef:     t.instances.head.beanDef,
+				name:        t.instances[0].beanDef.classPtr.String(),
+				beenFactory: t.instances[0].beenFactory,
+				beanDef:     t.instances[0].beanDef,
 			}
-			t.instances.tail.next = b
-			t.instances.tail = b
+			t.instances = append(t.instances, b)
 		}
 	}
 
