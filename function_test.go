@@ -108,7 +108,7 @@ func TestFunctions(t *testing.T) {
 	require.NotNil(t, srv.ClientBeans)
 	require.NotNil(t, srv.ServerBeans)
 
-	list := ctx.Bean(ClientBeansClass)
+	list := ctx.Bean(ClientBeansClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(list))
 	cbs := list[0].Object().(ClientBeans)
 
@@ -119,7 +119,7 @@ func TestFunctions(t *testing.T) {
 
 	require.Equal(t, clientBeanInstance, cb[0])
 
-	list = ctx.Bean(ServerBeansClass)
+	list = ctx.Bean(ServerBeansClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(list))
 	sbs := list[0].Object().(ServerBeans)
 

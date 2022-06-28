@@ -126,7 +126,7 @@ func TestPostConstruct(t *testing.T) {
 	require.NoError(t, err)
 	defer ctx.Close()
 
-	client := ctx.Bean(ClientServiceClass)
+	client := ctx.Bean(ClientServiceClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(client))
 
 	client[0].Object().(ClientService).Run("t3st")

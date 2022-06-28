@@ -123,7 +123,7 @@ func TestSingleFactoryBean(t *testing.T) {
 	require.NoError(t, err)
 	defer ctx.Close()
 
-	b := ctx.Bean(beanConstructedClass)
+	b := ctx.Bean(beanConstructedClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(b))
 
 	require.NotNil(t, b[0])
@@ -253,7 +253,7 @@ func TestFactoryInterfaceBean(t *testing.T) {
 	require.NoError(t, err)
 	defer ctx.Close()
 
-	bc := ctx.Bean(BeanConstructedClass)
+	bc := ctx.Bean(BeanConstructedClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(bc))
 
 	err = bc[0].Object().(BeanConstructed).Run()

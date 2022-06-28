@@ -64,7 +64,7 @@ func TestCreateEmpty(t *testing.T) {
 
 	require.Equal(t, 1, len(ctx.Core()))
 
-	c := ctx.Bean(beans.ContextClass)
+	c := ctx.Bean(beans.ContextClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(c))
 	require.Equal(t, ctx, c[0].Object())
 
@@ -241,34 +241,34 @@ func TestCreate(t *testing.T) {
 
 	require.Equal(t, 7, len(ctx.Core()))
 
-	beans := ctx.Lookup("storage")
-	require.Equal(t, 1, len(beans))
-	storageInstance := beans[0].Object().(*storageImpl)
+	list := ctx.Lookup("storage", beans.DefaultLevel)
+	require.Equal(t, 1, len(list))
+	storageInstance := list[0].Object().(*storageImpl)
 	require.NotNil(t, storageInstance)
 	require.Equal(t, storageInstance.Logger, logger)
-	require.Equal(t, storageInstance, ctx.Bean(StorageClass)[0].Object())
+	require.Equal(t, storageInstance, ctx.Bean(StorageClass, beans.DefaultLevel)[0].Object())
 
-	beans = ctx.Lookup("configService")
-	require.Equal(t, 1, len(beans))
-	configServiceInstance := beans[0].Object().(*configServiceImpl)
+	list = ctx.Lookup("configService", beans.DefaultLevel)
+	require.Equal(t, 1, len(list))
+	configServiceInstance := list[0].Object().(*configServiceImpl)
 	require.NotNil(t, configServiceInstance)
 	require.Equal(t, configServiceInstance.Storage, storageInstance)
-	require.Equal(t, configServiceInstance, ctx.Bean(ConfigServiceClass)[0].Object())
+	require.Equal(t, configServiceInstance, ctx.Bean(ConfigServiceClass, beans.DefaultLevel)[0].Object())
 
-	beans = ctx.Lookup("*beans_test.userServiceImpl")
-	require.Equal(t, 1, len(beans))
-	userServiceInstance := beans[0].Object().(*userServiceImpl)
+	list = ctx.Lookup("*beans_test.userServiceImpl", beans.DefaultLevel)
+	require.Equal(t, 1, len(list))
+	userServiceInstance := list[0].Object().(*userServiceImpl)
 	require.NotNil(t, userServiceInstance)
 	require.Equal(t, userServiceInstance.Storage, storageInstance)
 	require.Equal(t, userServiceInstance.ConfigService, configServiceInstance)
-	require.Equal(t, userServiceInstance, ctx.Bean(UserServiceClass)[0].Object())
+	require.Equal(t, userServiceInstance, ctx.Bean(UserServiceClass, beans.DefaultLevel)[0].Object())
 
-	beans = ctx.Lookup("*beans_test.appServiceImpl")
-	require.Equal(t, 1, len(beans))
-	appServiceInstance := beans[0].Object().(*appServiceImpl)
+	list = ctx.Lookup("*beans_test.appServiceImpl", beans.DefaultLevel)
+	require.Equal(t, 1, len(list))
+	appServiceInstance := list[0].Object().(*appServiceImpl)
 	require.NotNil(t, appServiceInstance)
 	require.Equal(t, ctx, appServiceInstance.GetContext())
-	require.Equal(t, appServiceInstance, ctx.Bean(AppServiceClass)[0].Object())
+	require.Equal(t, appServiceInstance, ctx.Bean(AppServiceClass, beans.DefaultLevel)[0].Object())
 
 }
 
@@ -409,7 +409,7 @@ func TestMissingInterfaceBean(t *testing.T) {
 	require.NoError(t, err)
 	defer ctx.Close()
 
-	beans := ctx.Lookup("beans_test.UserService")
+	list := ctx.Lookup("beans_test.UserService", beans.DefaultLevel)
 
 	/**
 	No one is requested context_test.UserService in scan list, therefore no bean defined under this interface
@@ -417,9 +417,9 @@ func TestMissingInterfaceBean(t *testing.T) {
 	To define bean interface use this construction in scan list:
 		&struct{ UserService `inject` }{}
 	*/
-	require.Equal(t, 0, len(beans))
+	require.Equal(t, 0, len(list))
 
-	b := ctx.Bean(UserServiceClass)
+	b := ctx.Bean(UserServiceClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(b))
 
 }

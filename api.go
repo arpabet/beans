@@ -133,12 +133,18 @@ type Context interface {
 		type UserService interface {
 		}
 
-		list := ctx.Bean(reflect.TypeOf((*app.UserService)(nil)).Elem())
+		list := ctx.Bean(reflect.TypeOf((*app.UserService)(nil)).Elem(), 0)
 
-	Lookup parent context only for beans that were used in injection inside child context.
-	If you need to lookup all beans, use the loop with Parent() call.
+	Lookup level defines how deep we will go in to beans:
+
+	level 0: look in the current context, if not found then look in the parent context and so on (default)
+	level 1: look only in the current context
+	level 2: look in the current context in union with the parent context
+	level 3: look in union of current, parent, parent of parent contexts
+	and so on.
+	level -1: look in union of all contexts.
 	*/
-	Bean(typ reflect.Type) []Bean
+	Bean(typ reflect.Type, level int) []Bean
 
 	/**
 	Lookup registered beans in context by name.
@@ -152,7 +158,7 @@ type Context interface {
 	Lookup parent context only for beans that were used in injection inside child context.
 	If you need to lookup all beans, use the loop with Parent() call.
 	*/
-	Lookup(name string) []Bean
+	Lookup(name string, level int) []Bean
 
 	/**
 	Inject fields in to the obj on runtime that is not part of core context.

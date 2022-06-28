@@ -125,12 +125,12 @@ func TestLazyBeanInterface(t *testing.T) {
 	require.NoError(t, err)
 	defer ctx.Close()
 
-	unoService := ctx.Bean(UnoServiceClass)
+	unoService := ctx.Bean(UnoServiceClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(unoService))
 
 	unoService[0].Object().(UnoService).Uno()
 
-	dosService := ctx.Bean(DosServiceClass)
+	dosService := ctx.Bean(DosServiceClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(dosService))
 
 	dosService[0].Object().(DosService).Dos()
@@ -199,12 +199,12 @@ func TestLazyBeanPointers(t *testing.T) {
 	require.NoError(t, err)
 	defer ctx.Close()
 
-	zero := ctx.Bean(ZeroServiceClass)
+	zero := ctx.Bean(ZeroServiceClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(zero))
 
 	zero[0].Object().(*zeroService).Zero()
 
-	un := ctx.Bean(UnServiceClass)
+	un := ctx.Bean(UnServiceClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(un))
 
 	un[0].Object().(*unService).Un()

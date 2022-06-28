@@ -26,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.arpabet.com/beans"
 	"reflect"
-	"sort"
 	"testing"
 )
 
@@ -74,8 +73,10 @@ func (t *coreBean) Inc() int {
 var serviceBeanClass = reflect.TypeOf((*serviceBean)(nil)) // *serviceBean
 type serviceBean struct {
 	Core    *coreBean `inject`
-	Components    []Component   `inject:"optional"`
-	Elements      []*implElement   `inject:"optional"`
+	Components    []Component   `inject:"optional,level=1"`   // default level is 1, only current context
+	Elements      []*implElement   `inject:"optional,level=1"`
+	Components2   []Component   `inject:"optional,level=2"` // level 2 is current context plus parent context
+	Elements2     []*implElement   `inject:"optional,level=2"`
 	testing *testing.T
 }
 
@@ -105,12 +106,12 @@ func TestParent(t *testing.T) {
 	p, _ := service.Parent()
 	require.Equal(t, parent, p)
 
-	b := service.Bean(serviceBeanClass)
+	b := service.Bean(serviceBeanClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(b))
 
 	b[0].Object().(*serviceBean).Run()
 
-	b = service.Bean(coreBeanClass)
+	b = service.Bean(coreBeanClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(b))
 
 	cnt := b[0].Object().(*coreBean).count
@@ -166,45 +167,101 @@ func TestParentCollection(t *testing.T) {
 	require.NoError(t, err)
 	defer child.Close()
 
-	require.Equal(t, 2, len(serviceBean.Elements))
-	require.Equal(t, "child", serviceBean.Elements[0].value)
-	require.Equal(t, "parent", serviceBean.Elements[1].value)
+	require.Equal(t, 2, len(serviceBean.Elements2))
+	require.Equal(t, "child", serviceBean.Elements2[0].value)
+	require.Equal(t, "parent", serviceBean.Elements2[1].value)
 
-	require.Equal(t, 2, len(serviceBean.Components))
+	require.Equal(t, 2, len(serviceBean.Components2))
 
-	require.Equal(t, "fromParent", serviceBean.Components[0].Information())
-	require.Equal(t, "fromChild", serviceBean.Components[1].Information())
+	require.Equal(t, "fromParent", serviceBean.Components2[0].Information())
+	require.Equal(t, "fromChild", serviceBean.Components2[1].Information())
 
 	/*
 	Check runtime bean access
 	 */
 
-	list := parent.Bean(ComponentClass)
+	list := parent.Bean(ComponentClass, -1)
 	require.Equal(t, 1, len(list))
 	require.Equal(t, "fromParent", list[0].Object().(Component).Information())
 
-	list = parent.Bean(implElementClass)
+	list = parent.Lookup("*beans_test.implComponent", -1)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "fromParent", list[0].Object().(Component).Information())
+
+	list = parent.Bean(implElementClass, -1)
 	require.Equal(t, 1, len(list))
 	require.Equal(t, "parent", list[0].Object().(*implElement).value)
 
-	list = child.Bean(ComponentClass)
+	list = parent.Lookup("*beans_test.implElement", -1)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "parent", list[0].Object().(*implElement).value)
+
+	/*
+	Test interface injected child context
+	 */
+
+	list = child.Bean(ComponentClass, 0)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "fromChild", list[0].Object().(Component).Information())
+
+	list = child.Lookup("*beans_test.implComponent", 0)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "fromChild", list[0].Object().(Component).Information())
+
+	list = child.Bean(ComponentClass, 1)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "fromChild", list[0].Object().(Component).Information())
+
+	list = child.Lookup("*beans_test.implComponent", 1)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "fromChild", list[0].Object().(Component).Information())
+
+	list = child.Bean(ComponentClass, 2)  // include parent context
 	require.Equal(t, 2, len(list))
 
-	// runtime beans could be unsorted, it is normal, because order statement only for injectors
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].Object().(Component).BeanOrder() < list[j].Object().(Component).BeanOrder()
-	})
+	list = child.Lookup("*beans_test.implComponent", 2)  // include parent context
+	require.Equal(t, 2, len(list))
+
+	list = child.Bean(ComponentClass, 3)  // include parent context
+	require.Equal(t, 2, len(list))
+
+	list = child.Bean(ComponentClass, -1)  // include parent context
+	require.Equal(t, 2, len(list))
 
 	require.Equal(t, "fromParent", list[0].Object().(Component).Information())
 	require.Equal(t, "fromChild", list[1].Object().(Component).Information())
 
-	list = child.Bean(implElementClass)
+	/*
+		Test pointer injected child context
+	*/
+
+	list = child.Bean(implElementClass, 0)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "child", list[0].Object().(*implElement).value)
+
+	list = child.Lookup("*beans_test.implElement", 0)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "child", list[0].Object().(*implElement).value)
+
+	list = child.Bean(implElementClass, 1)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "child", list[0].Object().(*implElement).value)
+
+	list = child.Lookup("*beans_test.implElement", 1)
+	require.Equal(t, 1, len(list))
+	require.Equal(t, "child", list[0].Object().(*implElement).value)
+
+	list = child.Bean(implElementClass, 2)
 	require.Equal(t, 2, len(list))
 
-	// runtime beans could be unsorted, it is normal, because order statement only for injectors
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].Object().(*implElement).order < list[j].Object().(*implElement).order
-	})
+	list = child.Lookup("*beans_test.implElement", 2)
+	require.Equal(t, 2, len(list))
+
+	list = child.Bean(implElementClass, 3)
+	require.Equal(t, 2, len(list))
+
+	list = child.Bean(implElementClass, -1)
+	require.Equal(t, 2, len(list))
 
 	require.Equal(t, "child", list[0].Object().(*implElement).value)
 	require.Equal(t, "parent", list[1].Object().(*implElement).value)

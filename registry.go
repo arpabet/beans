@@ -44,14 +44,11 @@ func (t *registry) findByType(ifaceType reflect.Type) ([]*bean, bool) {
 	return list, ok
 }
 
-func (t *registry) findByName(name string) []Bean {
+func (t *registry) findByName(name string) ([]*bean, bool) {
 	t.RLock()
 	defer t.RUnlock()
-	var beanList []Bean
-	for _, b := range t.beansByName[name] {
-		beanList = append(beanList, b)
-	}
-	return beanList
+	list, ok := t.beansByName[name]
+	return list, ok
 }
 
 func (t *registry) addBeanList(ifaceType reflect.Type, list []*bean) {

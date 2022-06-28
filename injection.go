@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
+	"sort"
 )
 
 type injectionDef struct {
@@ -63,9 +64,20 @@ type injectionDef struct {
 	*/
 	optional bool
 	/*
-		Injection expects the specific bean to be injected
+	Injection expects the specific bean to be injected
 	*/
 	qualifier string
+	/**
+	Level of how deep we need to search beans for injection
+
+	level 0: look in the current context, if not found then look in the parent context and so on (default)
+	level 1: look only in the current context
+	level 2: look in the current context in union with the parent context
+	level 3: look in union of current, parent, parent of parent contexts
+	and so on.
+	level -1: look in union of all contexts.
+	 */
+	level int
 }
 
 type injection struct {
@@ -86,10 +98,77 @@ type injection struct {
 	injectionDef *injectionDef
 }
 
+
+/*
+	Prepare beans for the specific level of injection
+ */
+func levelBeans(deep []beanlist, level int) []*bean {
+
+	switch level {
+	case -1:
+		var candidates []*bean
+		for _, entry := range deep {
+			candidates = append(candidates, entry.list...)
+		}
+		return candidates
+	case 0:
+		// always the first available level, regardless if it current or not
+		return deep[0].list
+	case 1:
+		if deep[0].level == 1 {
+			return deep[0].list
+		} else {
+			return nil
+		}
+	default:
+		var candidates []*bean
+		for _, entry := range deep {
+			if entry.level > level {
+				break
+			}
+			candidates = append(candidates, entry.list...)
+		}
+		return candidates
+	}
+
+}
+
+/**
+	Order beans, all or partially
+ */
+func orderBeans(candidates []*bean) []*bean {
+	var ordered []*bean
+	for _, candidate := range candidates {
+		if candidate.ordered {
+			ordered = append(ordered, candidate)
+		}
+	}
+	n := len(ordered)
+	if n > 0 {
+		sort.Slice(ordered, func(i, j int) bool {
+			return ordered[i].order < ordered[j].order
+		})
+		if n != len(candidates) {
+			var unordered []*bean
+			for _, candidate := range candidates {
+				if !candidate.ordered {
+					unordered = append(unordered, candidate)
+				}
+			}
+			return append(ordered, unordered...)
+		}
+		return ordered
+	} else {
+		return candidates
+	}
+}
+
 /**
 Inject value in to the field by using reflection
 */
-func (t *injection) inject(list []*bean) error {
+func (t *injection) inject(deep []beanlist) error {
+
+	list := orderBeans(levelBeans(deep, t.injectionDef.level))
 
 	field := t.value.Field(t.injectionDef.fieldNum)
 	if !field.CanSet() {
@@ -215,7 +294,10 @@ func (t *injection) inject(list []*bean) error {
 }
 
 // runtime injection
-func (t *injectionDef) inject(value *reflect.Value, list []*bean) error {
+func (t *injectionDef) inject(value *reflect.Value, deep []beanlist) error {
+
+	list := orderBeans(levelBeans(deep, t.level))
+
 	field := value.Field(t.fieldNum)
 
 	if !field.CanSet() {

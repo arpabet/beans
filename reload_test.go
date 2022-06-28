@@ -68,7 +68,7 @@ func TestBeanReload(t *testing.T) {
 	require.Equal(t, 0, reBean.destroyed)
 	require.True(t, tBean.ReloadableBean == reBean)
 
-	list := ctx.Bean(reloadableBeanClass)
+	list := ctx.Bean(reloadableBeanClass, beans.DefaultLevel)
 	require.Equal(t, 1, len(list))
 	require.Equal(t, reBean, list[0].Object())
 

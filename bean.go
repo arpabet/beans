@@ -26,9 +26,13 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
+	"unsafe"
 )
+
+const DefaultLevel = 0
 
 type beanDef struct {
 	/**
@@ -113,6 +117,15 @@ type bean struct {
 	ctorMu sync.Mutex
 }
 
+type beanlist struct {
+	level  int
+	list   []*bean
+}
+
+func (t beanlist) String() string {
+	return fmt.Sprintf("context{level=%d, beans=%v}", t.level, t.list)
+}
+
 func oneBean(b *bean) []*bean {
 	list := make([]*bean, 1)
 	list[0] = b
@@ -120,17 +133,18 @@ func oneBean(b *bean) []*bean {
 }
 
 func (t *bean) String() string {
+	pointer := uintptr(unsafe.Pointer(&t.obj))
 	if t.beenFactory != nil {
 		objectName := t.beenFactory.factoryBean.ObjectName()
 		if objectName != "" {
-			return fmt.Sprintf("<FactoryBean %s->%s(%s)>", t.beenFactory.factoryClassPtr, t.beanDef.classPtr, objectName)
+			return fmt.Sprintf("<FactoryBean %s->%s(%s)>(%x)", t.beenFactory.factoryClassPtr, t.beanDef.classPtr, objectName, pointer)
 		} else {
-			return fmt.Sprintf("<FactoryBean %s->%s>", t.beenFactory.factoryClassPtr, t.beanDef.classPtr)
+			return fmt.Sprintf("<FactoryBean %s->%s>(%x)", t.beenFactory.factoryClassPtr, t.beanDef.classPtr, pointer)
 		}
 	} else if t.qualifier != "" {
-		return fmt.Sprintf("<Bean %s(%s)>", t.beanDef.classPtr, t.qualifier)
+		return fmt.Sprintf("<Bean %s(%s)>(%x)", t.beanDef.classPtr, t.qualifier, pointer)
 	} else {
-		return fmt.Sprintf("<Bean %s>", t.beanDef.classPtr)
+		return fmt.Sprintf("<Bean %s>(%x)", t.beanDef.classPtr, pointer)
 	}
 }
 
@@ -328,9 +342,10 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 			if field.Anonymous {
 				return nil, errors.Errorf("injection to anonymous field '%s' in '%v' is not allowed", field.Name, classPtr)
 			}
-			var specificBean string
-			var fieldOptional bool
-			var fieldLazy bool
+			var qualifier string
+			var optional bool
+			var lazy bool
+			level := DefaultLevel
 			if hasInjectTag {
 				pairs := strings.Split(injectTag, ",")
 				for _, pair := range pairs {
@@ -339,12 +354,16 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 					switch strings.TrimSpace(kv[0]) {
 					case "bean":
 						if len(kv) > 1 {
-							specificBean = strings.TrimSpace(kv[1])
+							qualifier = strings.TrimSpace(kv[1])
 						}
 					case "optional":
-						fieldOptional = true
+						optional = true
 					case "lazy":
-						fieldLazy = true
+						lazy = true
+					case "level":
+						if len(kv) > 1 {
+							level, _ = strconv.Atoi(kv[1])
+						}
 					}
 				}
 			}
@@ -372,11 +391,12 @@ func investigate(obj interface{}, classPtr reflect.Type) (*bean, error) {
 				fieldNum:  j,
 				fieldName: field.Name,
 				fieldType: fieldType,
-				lazy:      fieldLazy,
+				lazy:      lazy,
 				slice:     fieldSlice,
 				table:     fieldMap,
-				optional:  fieldOptional,
-				qualifier: specificBean,
+				optional:  optional,
+				qualifier: qualifier,
+				level:     level,
 			}
 			fields = append(fields, injectDef)
 		}
