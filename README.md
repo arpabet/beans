@@ -270,8 +270,8 @@ child, err := parent.Extend(new(b))
 len(parent.Lookup("package_name.a")) == 1
 len(parent.Lookup("package_name.b")) == 0
 
-len(child.Lookup("package_name.a")) == 1
-len(child.Lookup("package_name.b")) == 1
+len(child.Lookup("package_name.a", 0)) == 1
+len(child.Lookup("package_name.b", 0)) == 1
 ```
 
 When we destroy child context, parent context would be still alive.
@@ -282,6 +282,18 @@ child.Close()
 // Extend method does not transfer ownership of beans from parent to child context, you would need to close parent context separatelly, after child
 parent.Close()
 ```
+
+### Level
+
+After extending context, we can end up with hierarchy of contexts, therefore we need levels in API to understand how deep we need to retrieve beans from parent contexts.
+
+Lookup level defines how deep we will go in to beans:
+* level 0: look in the current context, if not found then look in the parent context and so on (default)
+* level 1: look only in the current context
+* level 2: look in the current context in union with the parent context
+* level 3: look in union of current, parent, parent of parent contexts
+* and so on.
+* level -1: look in union of all contexts.
 
 ### Contributions
 
