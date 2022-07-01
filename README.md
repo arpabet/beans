@@ -267,8 +267,8 @@ struct b {
 
 child, err := parent.Extend(new(b))
 
-len(parent.Lookup("package_name.a")) == 1
-len(parent.Lookup("package_name.b")) == 0
+len(parent.Lookup("package_name.a", 0)) == 1
+len(parent.Lookup("package_name.b", 0)) == 0
 
 len(child.Lookup("package_name.a", 0)) == 1
 len(child.Lookup("package_name.b", 0)) == 1
