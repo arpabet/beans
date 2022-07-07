@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,6 +39,12 @@ Only for testing purposes.
  */
 
 var Verbose bool
+
+/**
+Experimental feature to use atomic injection
+ */
+
+var Atomic = false
 
 type context struct {
 
@@ -90,6 +97,12 @@ func (t *context) Parent() (Context, bool) {
 }
 
 func createContext(parent *context, scan []interface{}) (Context, error) {
+
+	prev := runtime.GOMAXPROCS(1)
+	println(prev)
+	defer func() {
+		runtime.GOMAXPROCS(prev)
+	}()
 
 	core := make(map[reflect.Type][]*bean)
 	pointers := make(map[reflect.Type][]*injection)

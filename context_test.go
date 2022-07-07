@@ -23,6 +23,7 @@
 package beans_test
 
 import (
+	"errors"
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"go.arpabet.com/beans"
@@ -162,6 +163,9 @@ func (t *userServiceImpl) allowWrites() bool {
 }
 
 func (t *userServiceImpl) PostConstruct() error {
+	if t.ConfigService == nil {
+		return errors.New("ConfigService is nil")
+	}
 	t.ConfigService.SetConfig("allowWrites", "true")
 	return nil
 }

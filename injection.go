@@ -27,6 +27,8 @@ import (
 	"github.com/pkg/errors"
 	"reflect"
 	"sort"
+	"sync/atomic"
+	"unsafe"
 )
 
 type injectionDef struct {
@@ -283,7 +285,11 @@ func (t *injection) inject(deep []beanlist) error {
 		return nil
 	}
 
-	field.Set(impl.valuePtr)
+	if Atomic {
+		atomicSet(field, impl.valuePtr)
+	} else {
+		field.Set(impl.valuePtr)
+	}
 
 	// register dependency that 'inject.bean' is using if it is not lazy
 	if !t.injectionDef.lazy {
@@ -291,6 +297,11 @@ func (t *injection) inject(deep []beanlist) error {
 	}
 
 	return nil
+}
+
+//atomic.StoreUintptr((*uintptr)(unsafe.Pointer(field.Addr().Pointer())), impl.valuePtr.Pointer())
+func atomicSet(field reflect.Value, instance reflect.Value) {
+	atomic.StoreUintptr((*uintptr)(unsafe.Pointer(field.Addr().Pointer())), instance.Pointer())
 }
 
 // runtime injection
