@@ -99,7 +99,6 @@ func (t *context) Parent() (Context, bool) {
 func createContext(parent *context, scan []interface{}) (Context, error) {
 
 	prev := runtime.GOMAXPROCS(1)
-	println(prev)
 	defer func() {
 		runtime.GOMAXPROCS(prev)
 	}()
