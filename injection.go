@@ -285,11 +285,7 @@ func (t *injection) inject(deep []beanlist) error {
 		return nil
 	}
 
-	if Atomic {
-		atomicSet(field, impl.valuePtr)
-	} else {
-		field.Set(impl.valuePtr)
-	}
+	field.Set(impl.valuePtr)
 
 	// register dependency that 'inject.bean' is using if it is not lazy
 	if !t.injectionDef.lazy {

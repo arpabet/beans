@@ -40,12 +40,6 @@ Only for testing purposes.
 
 var Verbose bool
 
-/**
-Experimental feature to use atomic injection
- */
-
-var Atomic = false
-
 type context struct {
 
 	/**
@@ -663,13 +657,13 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		}
 	}
 
-	if isFactoryBean || hasConstructor {
+	//if isFactoryBean || hasConstructor {
 		for _, dep := range bean.dependencies {
 			if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
 				return err
 			}
 		}
-	}
+	//}
 
 	// check if it is empty element bean
 	if bean.beenFactory != nil && bean.obj == nil {

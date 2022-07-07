@@ -41,7 +41,7 @@ type bPlainBean struct {
 }
 
 type cPlainBean struct {
-	ABean *aPlainBean `inject`
+	ABean *aPlainBean `inject:"lazy"`
 }
 
 func TestPlainBeanCycle(t *testing.T) {
