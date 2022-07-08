@@ -20,7 +20,7 @@ var ctx, err = beans.Create(
     &configServiceImpl{},
     &userServiceImpl{},
     &struct {
-        UserService UserService `inject`  // injection based by interface, not pointer to struct
+        UserService UserService `inject`  // injection based by interface or pointer 
     }{}, 
 )
 require.Nil(t, err)
@@ -32,7 +32,7 @@ Beans Framework does not support anonymous injection fields.
 Wrong:
 ```
 type wrong struct {
-    UserService `inject`  // if UserService interface has method X that also implements by *wrong struct or another anonymous injected field then we can not determine the right method impl or candidate for injection
+    UserService `inject`  // since the *wrong structure also implements UserService interface it can lead to cycle and wrong injections in context
 }
 ```
 
@@ -46,16 +46,15 @@ type right struct {
 ### Types
 
 Beans Framework supports following types for beans:
-* Pointer to struct
+* Pointer
 * Interface
 * Function
 
-Beans Framework does not support Struct type as bean instance type. 
+Beans Framework does not support Struct type as the bean instance type. 
 
 ### Function
 
 Function in golang is the first type citizen, therefore Bean Framework supports injection of functions by default.
-All primitive types and non-bean collections recommended to inject by functions.
 
 Example:
 ```
@@ -67,14 +66,15 @@ var ctx, err = beans.Create (
     &holder{},
     func() []string { return []string {"a", "b"} },
 )
-
-ctx.Close()
+require.Nil(t, err)
+defer ctx.Close()
 ``` 
  
 ### Collections 
  
-Beans Framework supports injection of bean collections like Slice and Map.
-All collection injections would be treated as collection of beans, if you need to inject collection of primitive types, please use function injection.
+Beans Framework supports injection of bean collections including Slice and Map.
+All collection injections would be treated as collection of beans. 
+If you need to inject collection of primitive types, please use function injection.
 
 Example:
 ```
@@ -90,11 +90,14 @@ type Element interface {
 }
 ```  
  
-In this case Element can implement beans.NamedBean interface to override bean name and also implement beans.OrderedBean to assign order for the bean in collection.
+Element should implement beans.NamedBean interface in order to be injected to map. Bean name would be used as a key of the map. Dublicates are not allowed.
+
+Element also can implement beans.OrderedBean to assign the order for the bean in collection. Sorted collection would be injected. It is allowed to have sorted and unsorted beans in collection, sorted goes first.
  
 ### beans.InitializingBean
 
-Added support for InitializingBean interface, whereas Beans Framework invokes PostConstruct method for each matching bean after injection phase.
+For each bean that implements InitializingBean interface, Beans Framework invokes PostConstruct() method at the time of Construction of the bean.
+This functionality could be used for safe initialization.
 
 Example:
 ```
@@ -117,7 +120,7 @@ func (t *component) PostConstruct() error {
 
 ### beans.DisposableBean
 
-Added support for DisposableBean interface, whereas Beans Framework invokes Destroy method for each matching bean during Close context call in backwards initialization order.
+For each bean that implements DisposableBean interface, Beans Framework invokes Destroy() method at the time of closing context, in reverse order how beans were initialized.
 
 Example:
 ```
@@ -133,7 +136,8 @@ func (t *component) Destroy() error {
 
 ### beans.NamedBean
 
-Added support for NamedBean interface to assign name to bean instance, used for qualifier bean injection.
+For each bean that implements NamedBean interface, Beans Framework will use returned bean name of calling function BeanName() instead of class name of the bean.
+Together with qualifier gives ability to select that bean to inject in application context. 
 
 Example:
 ```
@@ -142,14 +146,13 @@ type component struct {
 
 func (t *component) BeanName() string {
     // overrides default bean name: package_name.component
-    return "c"
+    return "new_component"
 }
 ```
 
 ### beans.OrderedBean
 
-Added support for OrderedBean interface to inject beans with specific order. 
-If bean does not implement OrderedBean interface, then Beans Framework preserve context initialization order. 
+For each bean that implements OrderedBean interface, Beans Framework invokes method BeanOrder() to determining position of the bean inside collection at the time of injection to another bean or in case of runtime lookup request. 
 
 Example:
 ```
@@ -165,7 +168,7 @@ func (t *component) BeanOrder() int {
 
 ### beans.FactoryBean
 
-Added support for FactoryBean interface, that used to create bean by application with required dependencies.
+FactoryBean interface is using to create beans by application with specific dependencies and complex logic.
 FactoryBean can produce singleton and non-singleton beans.
 
 Example:
@@ -190,7 +193,7 @@ func (t *factory) ObjectType() reflect.Type {
 }
 
 func (t *factory) ObjectName() string {
-	return "qualifierBeanName" // could be empty string
+	return "qualifierBeanName" // could be an empty string, used as a bean name for produced bean, usially singleton
 }
 
 func (t *factory) Singleton() bool {
@@ -254,6 +257,7 @@ if t.Dependency != nil {
 ### Extend
 
 Beans Framework has method Extend to create inherited contexts whereas parent sees only own beans, extended context sees parent and own beans.
+The level of lookup determines the logic how deep we search beans in parent hierarchy. 
 
 Example:
 ```
@@ -274,7 +278,7 @@ len(child.Lookup("package_name.a", 0)) == 1
 len(child.Lookup("package_name.b", 0)) == 1
 ```
 
-When we destroy child context, parent context would be still alive.
+If we destroy child context, parent context still be alive.
 
 Example:
 ```
