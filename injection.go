@@ -201,7 +201,7 @@ func (t *injection) inject(deep []beanlist) error {
 				newSlice = reflect.Append(newSlice, impl.valuePtr)
 
 				// register dependency that 'inject.bean' is using if it is not lazy
-				if !t.injectionDef.lazy {
+				if !t.injectionDef.lazy && t.bean != impl {
 					t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
 				}
 
@@ -252,7 +252,7 @@ func (t *injection) inject(deep []beanlist) error {
 				field.SetMapIndex(reflect.ValueOf(impl.name), impl.valuePtr)
 
 				// register dependency that 'inject.bean' is using if it is not lazy
-				if !t.injectionDef.lazy {
+				if !t.injectionDef.lazy && t.bean != impl {
 					t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
 				}
 			}
@@ -288,7 +288,7 @@ func (t *injection) inject(deep []beanlist) error {
 	field.Set(impl.valuePtr)
 
 	// register dependency that 'inject.bean' is using if it is not lazy
-	if !t.injectionDef.lazy {
+	if !t.injectionDef.lazy && t.bean != impl {
 		t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
 	}
 

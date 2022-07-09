@@ -57,3 +57,23 @@ func TestPlainBeanCycle(t *testing.T) {
 	defer ctx.Close()
 
 }
+
+type selfDepBean struct {
+	Self *selfDepBean `inject`
+}
+
+func TestSelfDepCycle(t *testing.T) {
+
+	beans.Verbose = true
+
+	self := &selfDepBean{}
+
+	ctx, err := beans.Create(
+		self,
+	)
+	require.NoError(t, err)
+	defer ctx.Close()
+
+	require.True(t, self == self.Self)
+
+}

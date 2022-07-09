@@ -657,13 +657,11 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		}
 	}
 
-	//if isFactoryBean || hasConstructor {
-		for _, dep := range bean.dependencies {
-			if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
-				return err
-			}
+	for _, dep := range bean.dependencies {
+		if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
+			return err
 		}
-	//}
+	}
 
 	// check if it is empty element bean
 	if bean.beenFactory != nil && bean.obj == nil {
