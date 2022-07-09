@@ -99,7 +99,7 @@ type bean struct {
 	/**
 	List of beans that should initialize before current bean
 	*/
-	dependencies [][]*bean
+	dependencies []*bean
 
 	/**
 	List of factory beans that should initialize before current bean
@@ -124,12 +124,6 @@ type beanlist struct {
 
 func (t beanlist) String() string {
 	return fmt.Sprintf("context{level=%d, beans=%v}", t.level, t.list)
-}
-
-func oneBean(b *bean) []*bean {
-	list := make([]*bean, 1)
-	list[0] = b
-	return list
 }
 
 func (t *bean) String() string {

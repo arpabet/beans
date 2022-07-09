@@ -118,7 +118,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 		},
 		lifecycle: BeanInitialized,
 	}
-	core[ctxBean.beanDef.classPtr] = oneBean(ctxBean)
+	core[ctxBean.beanDef.classPtr] = []*bean {ctxBean}
 
 	// scan
 	err := forEach("", scan, func(pos string, obj interface{}) (err error) {
@@ -239,7 +239,7 @@ func createContext(parent *context, scan []interface{}) (Context, error) {
 					},
 					lifecycle: BeanAllocated,
 				}
-				f.instances = oneBean(elemBean)
+				f.instances = []*bean {elemBean}
 				// we can have singleton or multiple beans in context produced by this factory, let's allocate reference for injections even if those beans are still not exist
 				registerBean(core, elemClassPtr, elemBean)
 			}
@@ -404,11 +404,14 @@ func (t *context) findAndCacheDirectRecursive(requiredType reflect.Type) []beanl
 }
 
 func registerBean(registry map[reflect.Type][]*bean, classPtr reflect.Type, bean *bean) {
+	registry[classPtr] = append(registry[classPtr], bean)
+/*
 	if list, ok := registry[classPtr]; ok {
 		registry[classPtr] = append(list, bean)
 	} else {
 		registry[classPtr] = oneBean(bean)
 	}
+ */
 }
 
 func forEach(initialPos string, scan []interface{}, cb func(i string, obj interface{}) error) error {
@@ -657,10 +660,9 @@ func (t *context) constructBean(bean *bean, stack []*bean) (err error) {
 		}
 	}
 
-	for _, dep := range bean.dependencies {
-		if err := t.constructBeanList(dep, append(stack, bean)); err != nil {
-			return err
-		}
+	// construct bean dependencies
+	if err := t.constructBeanList(bean.dependencies, append(stack, bean)); err != nil {
+		return err
 	}
 
 	// check if it is empty element bean

@@ -202,7 +202,7 @@ func (t *injection) inject(deep []beanlist) error {
 
 				// register dependency that 'inject.bean' is using if it is not lazy
 				if !t.injectionDef.lazy && t.bean != impl {
-					t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
+					t.bean.dependencies = append(t.bean.dependencies, impl)
 				}
 
 			}
@@ -253,7 +253,7 @@ func (t *injection) inject(deep []beanlist) error {
 
 				// register dependency that 'inject.bean' is using if it is not lazy
 				if !t.injectionDef.lazy && t.bean != impl {
-					t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
+					t.bean.dependencies = append(t.bean.dependencies, impl)
 				}
 			}
 		}
@@ -289,7 +289,7 @@ func (t *injection) inject(deep []beanlist) error {
 
 	// register dependency that 'inject.bean' is using if it is not lazy
 	if !t.injectionDef.lazy && t.bean != impl {
-		t.bean.dependencies = append(t.bean.dependencies, oneBean(impl))
+		t.bean.dependencies = append(t.bean.dependencies, impl)
 	}
 
 	return nil
